@@ -1,0 +1,30 @@
+/* abc.js — the alphabet: [upper, lower, keyword, emoji, japanese of keyword, [extra words that start with the letter]] */
+window.ENG_DATA = window.ENG_DATA || {};
+window.ENG_DATA.abc = [
+  ["A", "a", "apple", "🍎", "りんご", [["ant", "🐜"], ["arm", "💪"]]],
+  ["B", "b", "bear", "🐻", "くま", [["ball", "⚽"], ["banana", "🍌"]]],
+  ["C", "c", "cat", "🐱", "ねこ", [["car", "🚗"], ["cake", "🎂"]]],
+  ["D", "d", "dog", "🐶", "いぬ", [["duck", "🦆"], ["door", "🚪"]]],
+  ["E", "e", "egg", "🥚", "たまご", [["elephant", "🐘"], ["ear", "👂"]]],
+  ["F", "f", "fish", "🐟", "さかな", [["frog", "🐸"], ["fire", "🔥"]]],
+  ["G", "g", "goat", "🐐", "やぎ", [["grapes", "🍇"], ["gift", "🎁"]]],
+  ["H", "h", "hat", "🎩", "ぼうし", [["house", "🏠"], ["hand", "✋"]]],
+  ["I", "i", "ice", "🧊", "こおり", [["ink", "🖋️"], ["igloo", "🏔️"]]],
+  ["J", "j", "jam", "🍓", "ジャム", [["jet", "✈️"], ["jellyfish", "🪼"]]],
+  ["K", "k", "king", "🤴", "おうさま", [["key", "🔑"], ["kite", "🪁"]]],
+  ["L", "l", "lion", "🦁", "ライオン", [["leaf", "🍃"], ["lemon", "🍋"]]],
+  ["M", "m", "moon", "🌙", "つき", [["milk", "🥛"], ["monkey", "🐵"]]],
+  ["N", "n", "nose", "👃", "はな", [["nut", "🥜"], ["night", "🌃"]]],
+  ["O", "o", "octopus", "🐙", "たこ", [["orange", "🍊"], ["owl", "🦉"]]],
+  ["P", "p", "pig", "🐷", "ぶた", [["pen", "🖊️"], ["pizza", "🍕"]]],
+  ["Q", "q", "queen", "👸", "じょおう", [["quiz", "❓"], ["quiet", "🤫"]]],
+  ["R", "r", "rabbit", "🐰", "うさぎ", [["rain", "🌧️"], ["robot", "🤖"]]],
+  ["S", "s", "sun", "☀️", "たいよう", [["star", "⭐"], ["snake", "🐍"]]],
+  ["T", "t", "tiger", "🐯", "とら", [["tree", "🌳"], ["train", "🚆"]]],
+  ["U", "u", "umbrella", "☂️", "かさ", [["up", "⬆️"], ["unicorn", "🦄"]]],
+  ["V", "v", "violin", "🎻", "バイオリン", [["van", "🚐"], ["volcano", "🌋"]]],
+  ["W", "w", "watch", "⌚", "うでどけい", [["whale", "🐳"], ["water", "💧"]]],
+  ["X", "x", "box", "📦", "はこ (x で おわる)", [["fox", "🦊"], ["six", "6️⃣"]]],
+  ["Y", "y", "yellow", "💛", "きいろ", [["yo-yo", "🪀"], ["yogurt", "🥣"]]],
+  ["Z", "z", "zebra", "🦓", "しまうま", [["zoo", "🦒"], ["zero", "0️⃣"]]]
+];
