@@ -13,13 +13,105 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <link rel="icon" href="icons/icon-192.png" type="image/png">
+<style>
+/* Painted before any other file arrives: brand background + a loading screen, so a slow network never shows a blank page. */
+:root { --bg: #EAF2FF; --ink: #1B2440; --ink-2: #566285; --acc: #FF7A1A; --surface: #FFFFFF; color-scheme: light; }
+@media (prefers-color-scheme: dark) { :root { --bg: #0F172A; --ink: #F1F5F9; --ink-2: #B5C0D6; --surface: #1E293B; color-scheme: dark; } }
+html, body { height: 100%; margin: 0; background: var(--bg); color: var(--ink); }
+#boot { height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; padding: 24px; text-align: center; font-family: 'Hiragino Maru Gothic ProN', 'Yu Gothic UI', system-ui, sans-serif; }
+#boot .logo { font-size: 56px; line-height: 1; animation: eq-bob 1.1s ease-in-out infinite alternate; }
+#boot .title { font-size: 26px; font-weight: 800; color: var(--acc); }
+#boot .msg { color: var(--ink-2); font-size: 15px; }
+#boot .bar { width: 160px; height: 8px; border-radius: 999px; background: rgba(127, 127, 127, .18); overflow: hidden; }
+#boot .bar i { display: block; width: 40%; height: 100%; border-radius: 999px; background: var(--acc); animation: eq-slide 1.2s ease-in-out infinite; }
+#boot .detail { max-width: 520px; font-size: 12px; color: var(--ink-2); font-family: ui-monospace, Menlo, monospace; word-break: break-all; background: var(--surface); border-radius: 10px; padding: 8px 12px; }
+#boot button { margin-top: 8px; border: 0; border-radius: 999px; padding: 12px 24px; font: inherit; font-size: 17px; font-weight: 800; color: #fff; background: var(--acc); }
+#boot [hidden] { display: none; }
+@keyframes eq-bob { from { transform: translateY(0); } to { transform: translateY(-8px); } }
+@keyframes eq-slide { 0% { margin-left: -40%; } 100% { margin-left: 100%; } }
+@media (prefers-reduced-motion: reduce) { #boot .logo, #boot .bar i { animation: none; } }
+</style>
+<link rel="stylesheet" href="css/app.css">
+<!-- Web fonts load in the background (media=print → all on load) so they never block the first paint. -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&family=Zen+Maru+Gothic:wght@500;700;900&display=swap">
-<link rel="stylesheet" href="css/app.css">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&family=Zen+Maru+Gothic:wght@500;700;900&display=swap" media="print" onload="this.media='all'" crossorigin="anonymous">
+<script>
+/* Boot watchdog: shows a retry button when loading takes too long, and a readable error
+   (instead of a blank screen) when a script fails to load or crashes at start-up. */
+(function () {
+  function $(id) { return document.getElementById(id); }
+  function booted() { return !$('boot'); }
+  function show(id, on) { var el = $(id); if (el) el.hidden = !on; }
+  function setMsg(t) { var m = $('boot-msg'); if (m) m.textContent = t; }
+  // Drop every cached copy + service worker, then load a fresh page from the network.
+  // The ?r= marker tells the next page that a repair already happened, so it cannot loop.
+  function repair() {
+    var went = false;
+    var go = function () { if (went) return; went = true; location.replace(location.pathname + '?r=' + Date.now()); };
+    try {
+      var jobs = [];
+      if (window.caches) jobs.push(caches.keys().then(function (ks) { return Promise.all(ks.map(function (k) { return caches.delete(k); })); }));
+      if (navigator.serviceWorker) jobs.push(navigator.serviceWorker.getRegistrations().then(function (rs) { return Promise.all(rs.map(function (r) { return r.unregister(); })); }));
+      Promise.all(jobs).then(go, go);
+      setTimeout(go, 3000);
+    } catch (e) { go(); }
+  }
+  function fail(detail) {
+    if (booted()) return;
+    var repairedAlready = /[?&]r=\d/.test(location.search);
+    if (!repairedAlready && navigator.onLine !== false) {
+      // first failure while online: repair silently (a stale cache after an update is the usual cause)
+      setMsg('なおしています…');
+      repair();
+      return;
+    }
+    show('boot-bar', false); show('boot-slow', false); show('boot-error', true);
+    var d = $('boot-detail'); if (d) d.textContent = detail;
+    setMsg(navigator.onLine === false ? 'インターネットに つながっていないみたい' : 'うまく ひらけませんでした');
+  }
+  // A script that failed to load or crashed is only fatal if the app still has not started once parsing is done.
+  var pending = null;
+  function later(detail) {
+    pending = pending || detail;
+    var check = function () { if (!booted() && pending) fail(pending); };
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', function () { setTimeout(check, 100); });
+    else setTimeout(check, 100);
+  }
+  window.__eqRepair = repair;
+  window.__eqBootFail = function (err) { fail(err && err.stack ? String(err.stack).split('\n').slice(0, 3).join(' | ') : String(err)); };
+  window.addEventListener('error', function (e) {
+    if (booted()) return;
+    var t = e.target;
+    if (t && t.tagName === 'SCRIPT' && t.src) later('よみこめなかったファイル: ' + t.src.split('/').slice(-2).join('/'));
+    else if (e.message) later(e.message + ' @ ' + String(e.filename || '').split('/').pop() + ':' + e.lineno);
+  }, true);
+  setTimeout(function () { if (!booted()) show('boot-slow', true); }, 8000);
+  document.addEventListener('DOMContentLoaded', function () {
+    var b1 = $('boot-retry'), b2 = $('boot-repair');
+    if (b1) b1.addEventListener('click', function () { location.reload(); });
+    if (b2) b2.addEventListener('click', function () { setMsg('なおしています…'); repair(); });
+  });
+})();
+</script>
 </head>
 <body>
-<div id="app" aria-live="polite"></div>
+<div id="app" aria-live="polite">
+  <div id="boot">
+    <div class="logo">⚔️</div>
+    <div class="title">English Quest</div>
+    <div class="msg" id="boot-msg">よみこみちゅう…</div>
+    <div class="bar" id="boot-bar"><i></i></div>
+    <div id="boot-slow" hidden>
+      <div class="msg">じかんが かかっています。でんぱの いい ところで もういちど ためしてね。</div>
+      <button type="button" id="boot-retry">もういちど</button>
+    </div>
+    <div id="boot-error" hidden>
+      <div class="detail" id="boot-detail"></div>
+      <button type="button" id="boot-repair">なおして ひらく</button>
+    </div>
+  </div>
+</div>
 <script src="js/util.js"></script>
 <script src="js/audio.js"></script>
 <script src="js/store.js"></script>
