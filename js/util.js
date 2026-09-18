@@ -21,7 +21,10 @@
       const v = props[k];
       if (v == null || v === false) continue;
       if (k === 'on') { for (const ev in v) el.addEventListener(ev, v[ev]); }
-      else if (k === 'style' && typeof v === 'object') Object.assign(el.style, v);
+      else if (k === 'style' && typeof v === 'object') {
+        // Object.assign silently drops CSS custom properties (--p, --sc), so set those explicitly
+        for (const s in v) { if (s.indexOf('--') === 0) el.style.setProperty(s, String(v[s])); else el.style[s] = v[s]; }
+      }
       else if (k === 'class' || k === 'className') el.className += (el.className ? ' ' : '') + v;
       else if (k === 'html') el.innerHTML = v;
       else if (k === 'text') el.textContent = v;
