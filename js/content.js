@@ -79,6 +79,9 @@
     // travel phrases become words too (for stats/SRS), keyed by scene
     D.travel.forEach(sc => sc.phrases.forEach(ph => addWord('tr:' + sc.key + ':' + ph[0], ph[0], ph[1], '', 'phrase', 'travel', sc.key)));
 
+    // conversation phrases the coach teaches — same treatment, so they come back as review
+    (D.talk || []).forEach(sc => sc.phrases.forEach(ph => addWord('tk:' + sc.key + ':' + ph[0], ph[0], ph[1], '', 'phrase', 'talk', sc.key)));
+
     C.buddies = D.buddies.map(b => ({ id: b[0], emoji: b[1], ja: b[2], rarity: b[3], name: b[0] }));
     C.buddyById = {}; C.buddies.forEach(b => { C.buddyById[b.id] = b; });
     C.badges = D.badges.map(b => ({ id: b[0], emoji: b[1], name: b[2], desc: b[3] }));
@@ -86,6 +89,8 @@
     C.hatById = {}; C.hats.forEach(h => { C.hatById[h.id] = h; });
     C.travel = D.travel;
     C.travelByKey = {}; D.travel.forEach(s => { C.travelByKey[s.key] = s; });
+    C.talk = D.talk || [];
+    C.talkByKey = {}; C.talk.forEach(s => { C.talkByKey[s.key] = s; });
     return C;
   };
 
@@ -105,7 +110,7 @@
     if (opt.emoji) pool = pool.filter(k => C.words[k].e);
     if (opt.pos) { const same = pool.filter(k => C.words[k].pos === w.pos); if (same.length >= 6) pool = same; }
     if (pool.length < 3) {
-      let all = Object.keys(C.words).filter(k => k !== key && C.words[k].lv !== 'abc' && C.words[k].lv !== 'travel');
+      let all = Object.keys(C.words).filter(k => k !== key && C.words[k].lv !== 'abc' && C.words[k].lv !== 'travel' && C.words[k].lv !== 'talk');
       if (opt.emoji) all = all.filter(k => C.words[k].e);
       pool = pool.concat(all);
     }

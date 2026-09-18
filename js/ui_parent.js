@@ -46,6 +46,40 @@
     sc.appendChild(h('div.card', h('h3', '直近14日の XP'), chart, h('p.tiny.muted', '1日の目標: ' + p.settings.dailyGoal + ' XP（レッスン1回で 20〜30 XP くらい）')));
     // Eiken progress
     sc.appendChild(h('div.card', h('h3', 'レベルごとの進み具合'), Content.worlds.map(w => { const wp = Engine.worldProgress(p, w); const T = p.tests[w.key]; return h('div.row', { style: { padding: '6px 0' } }, h('span', { style: { width: '2rem' } }, w.emoji), h('div', { style: { flex: 1 } }, h('div.row.between.small', h('span', w.sub), h('span.num', wp.done + '/' + wp.total + (T && T.passed ? ' ・ 合格 ' + T.best + '点' : T && T.tries ? ' ・ 最高 ' + T.best + '点' : ''))), h('div.bar', h('i', { style: { width: wp.pct + '%' } })))); })));
+    // conversation practice (はなす): same five axes every time, so weeks can be compared
+    const tl = p.talk.logs || [];
+    if (tl.length) {
+      const w = Engine.talkWeekly(p);
+      const recent = tl.slice(0, 5);
+      const card = h('div.card.col',
+        h('div.section-title', h('h3', '🗣️ 英会話（はなす）'), h('span.pill.blue', '直近7日: ' + w.count + '回')),
+        h('div.stat-grid',
+          h('div.st', h('div.k', '合計セッション'), h('div.v', p.talk.sessions || 0)),
+          h('div.st', h('div.k', '声に出した回数'), h('div.v', p.talk.said || 0)),
+          h('div.st', h('div.k', '直近7日の平均'), h('div.v', (w.score == null ? '—' : w.score + '/25'))),
+          h('div.st', h('div.k', 'いまの難易度'), h('div.v', Engine.talkRung(p) + '/5'))),
+        h('p.tiny.muted', Engine.talkRungInfo(Engine.talkRung(p)).name + ' — ' + Engine.talkRungInfo(Engine.talkRung(p)).tip));
+      card.appendChild(h('h3', { style: { marginTop: '8px' } }, '観点別（毎回同じ基準・5点満点）'));
+      card.appendChild(h('table', { style: { width: '100%', fontSize: '.9rem' } },
+        Engine.talkAxes.map(a => h('tr', h('td', a.name),
+          h('td.num', { style: { textAlign: 'right' } }, w.axes[a.k] == null ? '—' : w.axes[a.k] + ' / 5')))));
+      card.appendChild(h('h3', { style: { marginTop: '8px' } }, '最近の学習ログ'));
+      recent.forEach(l => card.appendChild(h('div.row.between.small', { style: { padding: '4px 0', borderTop: '1px solid var(--line)' } },
+        h('span', l.d.slice(5).replace('-', '/') + ' ' + l.emoji + ' ' + l.name + '（' + l.rungName + '）'),
+        h('span.num', l.score + '/25 ・ 発話' + l.said))));
+      sc.appendChild(card);
+
+      const text = Engine.talkWeeklyText(p);
+      const ta = h('textarea', { readonly: true, rows: 8, value: text });
+      const copy = async () => {
+        try { if (navigator.share) { await navigator.share({ title: '英会話ふりかえり', text }); return; } } catch (e) { /* cancelled */ }
+        try { await navigator.clipboard.writeText(text); App.toast('コピーしました', 'good'); } catch (e) { ta.select(); App.toast('全選択してコピーしてください'); }
+      };
+      sc.appendChild(h('div.card.col', h('h3', '📒 週次レビュー（復習教材）'),
+        h('p.small.muted', '1週間の会話ログから、くり返したつまずき・言えた英語・来週の重点をまとめたものです。印刷したり、家族に共有したりできます。'),
+        ta, h('button.btn.blue', { on: { click: copy } }, '📤 共有 / コピー')));
+    }
+
     // weak words
     const weak = Engine.weakWords(p, 12).filter(k => p.words[k].w > 0);
     sc.appendChild(h('div.card', h('h3', '苦手な単語（間違いが多い順）'), weak.length ? h('div.wordchips', { style: { marginTop: '8px' } }, weak.map(k => { const w = Content.words[k]; return h('span', w.w + ' ' + w.ja + '（×' + p.words[k].w + '）'); })) : h('p.muted', 'まだデータがありません')));
@@ -54,7 +88,7 @@
     const tn = { choice: '選択問題', pic4: '絵を選ぶ', spell: 'つづり', build: '並べかえ', speak: '発声', trace: 'なぞり書き', intro: '新出', abcIntro: '文字の紹介' };
     if (types.length) sc.appendChild(h('div.card', h('h3', '問題タイプ別の回答数'), h('table', { style: { width: '100%', fontSize: '.9rem', marginTop: '6px' } }, types.map(t => h('tr', h('td', tn[t[0]] || t[0]), h('td.num', { style: { textAlign: 'right' } }, t[1]))))));
     // log
-    sc.appendChild(h('div.card', h('h3', '最近の記録'), p.log.length ? p.log.slice(0, 15).map(l => h('div.row.between.small', { style: { padding: '4px 0', borderTop: '1px solid var(--line)' } }, h('span', new Date(l.t).toLocaleString('ja-JP', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) + ' ' + ({ lesson: 'レッスン', boss: 'ボス', test: 'テスト', review: '復習', travel: '旅', practice: '練習' })[l.kind] + '「' + l.title + '」'), h('span.num', l.acc + '% / +' + l.xp + 'XP'))) : h('p.muted', 'まだ記録がありません')));
+    sc.appendChild(h('div.card', h('h3', '最近の記録'), p.log.length ? p.log.slice(0, 15).map(l => h('div.row.between.small', { style: { padding: '4px 0', borderTop: '1px solid var(--line)' } }, h('span', new Date(l.t).toLocaleString('ja-JP', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) + ' ' + (({ lesson: 'レッスン', boss: 'ボス', test: 'テスト', review: '復習', travel: '旅', practice: '練習', talk: '会話' })[l.kind] || l.kind) + '「' + l.title + '」'), h('span.num', l.acc + '% / +' + l.xp + 'XP'))) : h('p.muted', 'まだ記録がありません')));
   }
 
   function renderSettings(sc, p) {
@@ -67,6 +101,7 @@
       h('div.field', h('label', '1日の目標 XP'), goalSeg, h('div.tiny.muted', '小さな達成感を毎日：15 XP は約1レッスン、30 XP で約2レッスン分です')),
       h('div.field', h('label', '読み上げの速さ'), rateSeg, h('div.tiny.muted', '使用中の音声: ' + (Audio2.voiceName() || '（この端末には英語音声がありません）'))),
       toggle('speech', 'マイクで発音チェック', Audio2.srAvailable() ? 'オフにすると「聞いて真似する」練習になります' : 'この環境では音声認識が使えないため、聞いて真似する練習になります'),
+      toggle('hintJa', '会話中の日本語ヒント', 'はなすモードで、コーチの英語の下に意味を表示します（慣れてきたらオフに）'),
       toggle('sfx', '効果音', 'バトルの効果音のオン/オフ'),
       h('div.field', h('label', '保護者メニューの PIN'), h('div.row', pin, h('button.btn.sm.blue', { on: { click: () => { const v = pin.value.trim(); if (v && !/^\d{4}$/.test(v)) { App.toast('4けたの数字にしてください'); return; } s.pin = v; App.save(); App.toast(v ? 'PINを設定しました' : 'PINを解除しました（計算問題になります）', 'good'); } } }, '保存')))));
     sc.appendChild(h('div.card.col', h('h3', 'このプロフィール'), h('div.field', h('label', '開始レベル（これより前のワールドは自由に遊べます）'), h('select', { id: 'startSel', on: { change: (e) => { p.startLevel = e.target.value; App.save(); App.toast('変更しました', 'good'); } } }, Content.worlds.map(w => h('option', { value: w.key, selected: w.key === p.startLevel }, w.emoji + ' ' + w.sub))))));
@@ -89,6 +124,14 @@
       h('ol', { style: { paddingLeft: '1.2em', margin: 0, lineHeight: 1.7 } }, li('iPad の Safari でこのページを開く'), li('共有ボタン（□↑）→「ホーム画面に追加」'), li('ホーム画面のアイコンから起動すると全画面のアプリとして使えます'), li('初回にマイクの許可を聞かれたら「許可」（発音チェックに使います）')),
       h('h3', '🎮 遊び方のしくみ'),
       h('ul', { style: { paddingLeft: '1.2em', margin: 0, lineHeight: 1.7 } }, li('マップのステージ = 20単語くらいのテーマ。4〜5レッスン + ボスで1ステージ'), li('正解すると攻撃、連続正解でコンボ（ダメージ↑・5コンボでXP↑）。まちがえても失格にはならず、その問題があとで出直します'), li('覚えた単語は 1日・3日・7日・14日・30日後に「ゾンビ」として戻ってきます（忘却曲線に合わせた復習）'), li('毎日3つのクエスト。全部達成で宝箱＋たまご。たまごは5回バトルで「なかま」に孵化'), li('各級の最後は本物の英検の形式（語彙文法・会話・並べかえ・リスニング・読解）を模したボステスト。70点で合格→次の級が開放'), li('「たび」は来年の海外旅行のためのフレーズ集。現地で通じたら「つうじた！」で大きなごほうび')),
+      h('h3', '🗣️ はなす（英会話）モードの考え方'),
+      h('ul', { style: { paddingLeft: '1.2em', margin: 0, lineHeight: 1.7 } },
+        li('会話中は止めません。細かい間違いを都度直さず、終わってから「よかった点」と「直す点（最大2つ）」をまとめて見せます'),
+        li('毎回同じ5つの観点（伝えようとした / 答えられた / フレーズが使えた / 伝わる発音 / 最後まで続けた）で25点満点。点数の変化を週単位で比べられます'),
+        li('難易度は5段階（Yes/No → 二択 → まねする → ことばを変える → 自分のことばで）。結果に応じて自動で1段ずつ上下します'),
+        li('セッションごとに学習ログが残り、週末に「週次レビュー（復習教材）」が作られます（この画面の「記録」タブからコピーできます）'),
+        li('最後に5分でできる宿題が1つ出ます。ホームの📝から「できた」を押すとごほうび'),
+        li('マイクが使えない環境では、聞いて真似して「いえた！」を押す練習になります（発音の点は付きません）')),
       h('h3', '📚 収録内容'),
       h('p.small.muted', 'アルファベット26文字 ・ フォニックス ' + Content.countWords('ph') + '語 ・ 英検5級 ' + Content.countWords('g5') + '語 ・ 4級 ' + Content.countWords('g4') + '語 ・ 3級 ' + Content.countWords('g3') + '語 ・ 準2級 ' + Content.countWords('p2') + '語 ・ 2級 ' + Content.countWords('g2') + '語 ・ 旅行フレーズ ' + Content.countWords('travel') + '（単語リストは各級の目安で、公式の出題範囲そのものではありません）')));
   }

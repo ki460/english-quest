@@ -48,7 +48,7 @@
 
   App.tabbar = function (active) {
     const due = App.p ? Engine.dueWords(App.p).length : 0;
-    const tabs = [['home', '🏠', 'ホーム'], ['map', '🗺️', 'マップ'], ['review', '🧟', 'ふくしゅう'], ['travel', '✈️', 'たび'], ['book', '📖', 'ずかん']];
+    const tabs = [['home', '🏠', 'ホーム'], ['map', '🗺️', 'マップ'], ['talk', '🗣️', 'はなす'], ['review', '🧟', 'ふくしゅう'], ['travel', '✈️', 'たび'], ['book', '📖', 'ずかん']];
     return h('nav.tabbar', tabs.map(t => h('button', { class: t[0] === active ? 'on' : '', on: { click: () => { App.sfx('tap'); App.go(t[0]); } } },
       h('span.ic', t[1]), t[2], t[0] === 'review' && due ? h('span.dot', due > 99 ? '99+' : due) : null)));
   };

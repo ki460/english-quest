@@ -199,15 +199,15 @@
   };
   G.phraseJa = function (p, key) {          // hear a travel phrase, choose its meaning
     const w = W(key);
-    const pool = (C().levelWords.travel || []).filter(k => k !== key);
+    const pool = (C().levelWords[w.lv] || []).filter(k => k !== key);
     const ds = distinctBy(U.shuffle(pool), k => W(k).ja, 3, [w.ja]);
     const r = shuffledChoices(key, ds, k => ({ key: k, label: W(k).ja }));
     return { type: 'choice', word: key, gen: ['phraseJa', key], prompt: { tts: w.w, listen: true, label: 'きこえた いみは？' }, choices: r.choices, answer: r.answer, reveal: w.w, ja: w.ja };
   };
   G.phraseEn = function (p, key) {          // see Japanese, choose the English phrase
     const w = W(key);
-    const pool = (C().levelWords.travel || []).filter(k => k !== key && W(k).theme === w.theme);
-    const ds = distinctBy(U.shuffle(pool.concat(C().levelWords.travel)), k => W(k).w, 3, [w.w]);
+    const same = (C().levelWords[w.lv] || []).filter(k => k !== key && W(k).theme === w.theme);
+    const ds = distinctBy(U.shuffle(same.concat(C().levelWords[w.lv] || [])), k => W(k).w, 3, [w.w]);
     const r = shuffledChoices(key, ds, k => ({ key: k, label: W(k).w, tts: W(k).w }));
     return { type: 'choice', word: key, gen: ['phraseEn', key], prompt: { text: w.ja, label: 'えいごで どう いう？' }, choices: r.choices, answer: r.answer, ttsAfter: w.w, ja: w.ja };
   };
@@ -378,7 +378,7 @@
     if (!keys.length) return null;
     const steps = keys.map(k => {
       const w = W(k), b = p.words[k].b;
-      if (w.lv === 'travel') return U.pick([G.phraseJa, G.phraseEn])(p, k);
+      if (w.lv === 'travel' || w.lv === 'talk') return U.pick([G.phraseJa, G.phraseEn])(p, k);
       if (w.lv === 'ph') return U.pick([G.pic4, G.listen4, G.spell])(p, k);
       const pool = b >= 3 ? [G.en4, G.spell, G.listen4] : [G.ja4, G.pic4, G.listen4];
       return U.pick(pool)(p, k);
@@ -539,6 +539,22 @@
     return hatched;
   };
 
+  // XP, level, coins, daily goal, streak, quests, badges — shared by every kind of session
+  function applyRewards(p, r, questBefore) {
+    const today = U.today();
+    const before = E.levelFor(p.xp);
+    p.xp += r.xp; p.coins += r.coins;
+    const after = E.levelFor(p.xp);
+    if (after > before) { r.levelUp = { from: before, to: after, coins: 50 * (after - before), title: E.title(after) }; p.coins += r.levelUp.coins; }
+    p.daily.xp += r.xp; E.questProgress(p, 'xp', r.xp);
+    p.stats.days[today] = (p.stats.days[today] || 0) + r.xp;
+    if (!p.daily.goalDone && p.daily.xp >= p.settings.dailyGoal) { p.daily.goalDone = true; r.goalDone = true; }
+    if (E.touchStreak(p)) r.streak = p.streak.count;
+    r.questsDone = (p.daily.quests || []).filter(q => q.done).length - questBefore;
+    r.newBadges = E.checkBadges(p);
+    return r;
+  }
+
   E.finish = function (p, s) {
     const today = U.today();
     const acc = s.scored ? s.correct / s.scored : 0;
@@ -585,17 +601,7 @@
     if (r.egg) p.eggs.push(r.egg);
     if (countsAsBattle || s.kind === 'test') r.hatched = E.progressEggs(p);
 
-    // XP, level, coins, daily goal
-    const before = E.levelFor(p.xp);
-    p.xp += r.xp; p.coins += r.coins;
-    const after = E.levelFor(p.xp);
-    if (after > before) { r.levelUp = { from: before, to: after, coins: 50 * (after - before), title: E.title(after) }; p.coins += r.levelUp.coins; }
-    p.daily.xp += r.xp; E.questProgress(p, 'xp', r.xp);
-    p.stats.days[today] = (p.stats.days[today] || 0) + r.xp;
-    if (!p.daily.goalDone && p.daily.xp >= p.settings.dailyGoal) { p.daily.goalDone = true; r.goalDone = true; }
-    if (E.touchStreak(p)) r.streak = p.streak.count;
-    r.questsDone = (p.daily.quests || []).filter(q => q.done).length - questBefore;
-    r.newBadges = E.checkBadges(p);
+    applyRewards(p, r, questBefore);
     p.log.unshift({ t: Date.now(), kind: s.kind, title: s.title, acc: Math.round(acc * 100), xp: r.xp, n: s.scored });
     if (p.log.length > 60) p.log.length = 60;
     Store.save();
@@ -615,7 +621,9 @@
       abc: E.testPassed(p, 'abc'), ph: E.testPassed(p, 'ph'), g5: E.testPassed(p, 'g5'), g4: E.testPassed(p, 'g4'), g3: E.testPassed(p, 'g3'), p2: E.testPassed(p, 'p2'), g2: E.testPassed(p, 'g2'),
       col5: p.buddies.length >= 5, col15: p.buddies.length >= 15, colall: p.buddies.length >= C().buddies.length,
       sp10: st.speak >= 10, sp100: st.speak >= 100, tr1: scenes >= 1, tr8: scenes >= C().travel.length,
-      tsu1: p.travel.tsuujita >= 1, tsu5: p.travel.tsuujita >= 5, rev10: st.reviews >= 10, rev50: st.reviews >= 50
+      tsu1: p.travel.tsuujita >= 1, tsu5: p.travel.tsuujita >= 5, rev10: st.reviews >= 10, rev50: st.reviews >= 50,
+      talk1: (p.talk.sessions || 0) >= 1, talk10: (p.talk.sessions || 0) >= 10, talk30: (p.talk.sessions || 0) >= 30,
+      hw5: (p.talk.hwDone || 0) >= 5, rung5: (p.talk.rung || 0) >= 5
     };
     C().badges.forEach(b => { if (cond[b.id] && !have.has(b.id)) { p.badges.push(b.id); out.push(b); } });
     return out;
@@ -648,6 +656,297 @@
     const badges = E.checkBadges(p);
     Store.save();
     return { coins: 100, gems: 2, badges };
+  };
+
+  // ---------- talk: coached conversation ----------
+  // House rules (borrowed from how people coach themselves with an AI tutor):
+  //   * never stop the conversation for a mistake — collect everything and sum it up at the end
+  //   * always the same 5-axis score, so progress can be compared week to week
+  //   * climb a ladder: Yes/No → pick one of two → copy a model → swap one word → say your own
+  //   * every session leaves a log line and one 5-minute homework task
+  const RUNGS = [
+    { n: 1, mode: 'yn', name: 'Yes / No で こたえる', tip: 'Yes か No を えらんで 声に 出そう' },
+    { n: 2, mode: 'ab', name: 'ふたつから えらんで いう', tip: 'どちらか えらんで そのまま 言おう' },
+    { n: 3, mode: 'echo', name: 'まねして いう', tip: 'きこえた 文を そのまま まねしよう' },
+    { n: 4, mode: 'slot', name: 'ことばを かえて いう', tip: 'じぶんの ことに かえて 言おう' },
+    { n: 5, mode: 'free', name: 'じぶんの ことばで いう', tip: 'じぶんの 文で こたえよう' }
+  ];
+  const AXES = [
+    { k: 'try', name: 'つたえようとした' },
+    { k: 'answer', name: 'こたえられた' },
+    { k: 'phrase', name: 'フレーズが つかえた' },
+    { k: 'pron', name: 'つたわる はつおん' },
+    { k: 'keep', name: 'さいごまで つづけた' }
+  ];
+  const FOCUS = {
+    try: 'まずは 1文でも いいから 声に出してみよう',
+    answer: 'きかれた ことに 「Yes / No」＋ひとこと で こたえてみよう',
+    phrase: 'ならった フレーズを そのまま つかってみよう',
+    pron: 'ゆっくり はっきり、さいごの おとまで 言ってみよう',
+    keep: 'さいごの ターンまで はなしきってみよう'
+  };
+  const YN_RULES = [
+    [/^do you\b/, 'Yes, I do.', "No, I don't."],
+    [/^does\b/, 'Yes, it does.', "No, it doesn't."],
+    [/^are you\b/, 'Yes, I am.', "No, I'm not."],
+    [/^is (it|this|that|your|the)\b/, 'Yes, it is.', "No, it isn't."],
+    [/^can you\b/, 'Yes, I can.', "No, I can't."],
+    [/^can i\b/, 'Sure!', "Sorry, you can't."],
+    [/^did you\b/, 'Yes, I did.', "No, I didn't."],
+    [/^have you\b/, 'Yes, I have.', "No, I haven't."],
+    [/^was it\b/, 'Yes, it was.', "No, it wasn't."],
+    [/^were you\b/, 'Yes, I was.', "No, I wasn't."],
+    [/^will you\b/, 'Yes, I will.', "No, I won't."]
+  ];
+  const STOP = new Set(['a', 'an', 'the', 'is', 'am', 'are', 'was', 'were', 'do', 'does', 'did', 'to', 'of', 'and', 'it', 'i', 'my', 'me', 'you', 'your', 'in', 'on', 'at', 'too', 'yes', 'no', "i'm", "it's", "don't"]);
+  const contentWords = (s) => U.norm(s).split(' ').filter(w => w.length > 1 && !STOP.has(w));
+
+  E.talkRungs = RUNGS;
+  E.talkAxes = AXES;
+  E.talkRung = function (p) {
+    if (p.talk.rung) return U.clamp(p.talk.rung, 1, 5);
+    const i = C().worldIndex(p.startLevel);
+    return i <= 1 ? 1 : (i === 2 ? 2 : (i === 3 ? 3 : 4));
+  };
+  E.talkRungInfo = (n) => RUNGS[U.clamp(n, 1, 5) - 1];
+  function derivedYn(q) {
+    const s = String(q).trim().toLowerCase();
+    for (const r of YN_RULES) if (r[0].test(s)) return [r[1], r[2]];
+    return null;
+  }
+
+  function talkTurn(p, scene, t, rung) {
+    const fill = (s) => String(s).replace(/\{name\}/g, p.name || 'Ken');
+    const models = t.a.map(fill);
+    const yn = t.yn || derivedYn(t.q);
+    const pick = t.pick;
+    let mode = RUNGS[U.clamp(rung, 1, 5) - 1].mode;
+    if (mode === 'yn' && !yn) mode = pick ? 'ab' : 'echo';
+    if (mode === 'ab' && !pick) mode = yn ? 'yn' : 'echo';
+    if (mode === 'slot' && !pick) mode = 'echo';
+    const turn = { q: fill(t.q), ja: t.ja, mode, rung, models, hint: models[models.length - 1], loose: t.loose || null };
+    if (mode === 'yn') turn.options = yn.slice();
+    else if (mode === 'ab') turn.options = U.sample(pick[1], 2).map(o => pick[0].replace('___', o[0]));
+    else if (mode === 'echo') turn.target = models[rung >= 4 ? models.length - 1 : 0];
+    else if (mode === 'slot') { turn.pattern = pick[0]; turn.words = U.sample(pick[1], Math.min(5, pick[1].length)); }
+    turn.keys = U.uniq(contentWords(models[0]).concat(pick ? contentWords(pick[0].replace('___', '')) : []));
+    return turn;
+  }
+
+  E.startTalk = function (p, sceneKey) {
+    const scene = C().talkByKey[sceneKey];
+    const base = E.talkRung(p);
+    const last = scene.turns.length - 1;
+    let pool = scene.turns.map((_, i) => i).slice(1, last);
+    if (base <= 2) {
+      // a beginner meets the Yes/No turns first, then the ones that offer two answers
+      const yn = pool.filter(i => scene.turns[i].yn || derivedYn(scene.turns[i].q));
+      const ab = pool.filter(i => scene.turns[i].pick && yn.indexOf(i) < 0);
+      pool = U.uniq(U.sample(yn, 2).concat(U.sample(ab, 3), U.shuffle(pool)));
+    }
+    const middle = (base <= 2 ? pool : U.sample(pool, 4)).slice(0, 4).sort((a, b) => a - b);
+    const order = [0].concat(middle, [last]);
+    // warm up one rung lower, then one taste of the next rung, and finish one rung higher
+    const rungs = order.map((_, k) => k === 0 ? Math.max(1, base - 1)
+      : (k === order.length - 1 || k === 3) ? Math.min(5, base + 1) : base);
+    return {
+      kind: 'talk', sceneKey, scene, title: scene.name, rung: base,
+      turns: order.map((ti, k) => talkTurn(p, scene, scene.turns[ti], rungs[k])),
+      i: 0, said: 0, startedAt: Date.now(), records: []
+    };
+  };
+
+  // Record one turn. `r`: { text: what they tried to say, heard, score (0..1 | null), helped, skipped }
+  E.talkSay = function (p, ts, r) {
+    const turn = ts.turns[ts.i] || {};
+    const said = U.norm(r.heard || (r.skipped ? '' : r.text || ''));
+    const model = r.text || turn.hint || '';
+    const usedKey = !!said && (turn.keys || []).some(k => said.indexOf(k) >= 0);
+    const rec = {
+      q: turn.q, mode: turn.mode, rung: turn.rung, text: model, heard: r.heard || '', model: r.model || null,
+      score: (r.score === 0 || r.score) ? r.score : null,
+      ok: !r.skipped && (r.score == null ? true : r.score >= 0.72),
+      helped: !!r.helped, skipped: !!r.skipped, usedKey: usedKey || (!r.skipped && r.score == null)
+    };
+    if (!rec.skipped) { ts.said++; p.stats.speak++; E.questProgress(p, 'speak', 1); }
+    ts.records.push(rec);
+    ts.i++;
+    return rec;
+  };
+
+  function band(x) { return x <= 0 ? 0 : U.clamp(Math.round(x * 5), 1, 5); }
+  function talkNote(heard, model) {
+    const said = U.norm(heard);
+    if (!said) return 'もうすこし 大きな こえで、はっきり いってみよう';
+    const hw = new Set(said.split(' '));
+    const miss = contentWords(model).filter(w => !hw.has(w));
+    if (miss.length && miss.length <= 3) return '「' + miss.join(' ') + '」が きこえなかったよ。そこを ゆっくり いおう';
+    return 'ひとこと ずつ、ゆっくり いうと つたわるよ';
+  }
+
+  const rungNext = (n) => n < 5 ? 'つぎは むずかしさ ' + (n + 1) + '「' + RUNGS[n].name + '」に ちょうせん！' : 'じぶんの ことばで もっと ながく はなしてみよう';
+
+  E.finishTalk = function (p, ts) {
+    const today = U.today();
+    const scene = ts.scene;
+    const recs = ts.records, n = Math.max(1, ts.stoppedEarly ? recs.length : ts.turns.length);
+    const spoke = recs.filter(r => !r.skipped).length;
+    const okCount = recs.filter(r => r.ok).length;
+    const helped = recs.filter(r => r.helped).length;
+    const mic = recs.filter(r => r.score != null);
+    const avg = mic.length ? U.sum(mic.map(r => r.score)) / mic.length : null;
+    const pron = avg == null ? null : (avg >= 0.85 ? 5 : avg >= 0.72 ? 4 : avg >= 0.55 ? 3 : avg >= 0.35 ? 2 : 1);
+    const axes = {
+      try: band(spoke / n),
+      answer: band(okCount / n),
+      phrase: band(recs.filter(r => r.ok && r.usedKey).length / n),
+      pron: pron,
+      keep: U.clamp(band((spoke + 0.3 * (recs.length - spoke)) / n) - (helped > n / 2 ? 1 : 0) - (ts.stoppedEarly ? 1 : 0), spoke ? 1 : 0, 5)
+    };
+    const scored = AXES.filter(a => axes[a.k] != null);
+    const score = Math.round(25 * U.sum(scored.map(a => axes[a.k])) / (5 * scored.length));
+
+    // what to fix — at most two, the way a coach would: what you said → a better way → why
+    const mistakes = recs.filter(r => !r.ok && !r.skipped && r.score != null)
+      .sort((a, b) => a.score - b.score).slice(0, 2)
+      .map(r => ({ said: r.heard, better: r.text, note: talkNote(r.heard, r.text) }));
+    const done = recs.filter(r => r.ok).map(r => r.text);
+    // a free answer in the player's own words, plus how a native would say it ("完成版")
+    const polish = recs.filter(r => {
+      if (!r.ok || !r.model || U.norm(r.model) === U.norm(r.text)) return false;
+      // only when the model is the same answer said better — never when the child talked about something else
+      return U.similarity(r.text, r.model) >= 0.5;
+    }).map(r => ({ said: r.text, better: r.model }));
+
+    // the ladder moves with the player, never more than one step at a time
+    const before = E.talkRung(p);
+    let rung = before;
+    if (score >= 20 && axes.answer >= 4 && spoke >= n - 1) rung = Math.min(5, before + 1);
+    else if (score <= 11 || spoke <= n / 2) rung = Math.max(1, before - 1);
+    p.talk.rung = rung;
+
+    const prev = p.talk.logs[0] || null;
+    let better = null;
+    if (prev) {
+      const gains = AXES.filter(a => axes[a.k] != null && prev.axes && prev.axes[a.k] != null && axes[a.k] > prev.axes[a.k])
+        .map(a => ({ name: a.name, d: axes[a.k] - prev.axes[a.k] })).sort((x, y) => y.d - x.d);
+      if (gains.length) better = gains[0].name + ' が ' + gains[0].d + 'てん アップ！';
+      else if (score > prev.score) better = 'ごうけいが ' + (score - prev.score) + 'てん アップ！';
+      else if (ts.said > (prev.said || 0)) better = 'はなした かずが ' + (ts.said - prev.said) + 'かい ふえた！';
+    }
+    if (!better) {
+      const best = AXES.filter(a => axes[a.k] != null).sort((x, y) => axes[y.k] - axes[x.k])[0];
+      better = 'きょう よかったところ： ' + best.name + '（' + axes[best.k] + '/5）';
+    }
+    const lowest = AXES.filter(a => axes[a.k] != null).sort((x, y) => axes[x.k] - axes[y.k])[0];
+    // nothing left to fix today → point at the next challenge instead of a made-up weakness
+    const next = axes[lowest.k] < 4 ? FOCUS[lowest.k]
+      : (rung > before ? rungNext(before) : 'つぎは もっと ながい 文で じぶんの ことを つたえてみよう');
+
+    // phrases of the scene go into the review (zombie) rotation
+    const phraseKeys = scene.phrases.map(ph => 'tk:' + scene.key + ':' + ph[0]);
+    phraseKeys.forEach(k => { if (C().words[k]) E.markSeen(p, k); });
+    recs.filter(r => r.ok).forEach(r => {
+      const said = U.norm(r.text);
+      const k = phraseKeys.find(x => C().words[x] && said.indexOf(U.norm(C().words[x].w)) >= 0);
+      if (k) E.srsCorrect(p, k);
+    });
+
+    const homework = { text: U.pick(scene.homework), scene: scene.key, name: scene.name, date: today, done: false };
+    p.talk.homework = homework;
+
+    const log = {
+      d: today, t: Date.now(), scene: scene.key, name: scene.name, emoji: scene.emoji,
+      rung: ts.rung, rungName: E.talkRungInfo(ts.rung).name, said: ts.said, turns: ts.turns.length,
+      score, axes, mistakes, phrases: done, polish, next, homework: homework.text
+    };
+    p.talk.logs.unshift(log);
+    if (p.talk.logs.length > 60) p.talk.logs.length = 60;
+    p.talk.sessions = (p.talk.sessions || 0) + 1;
+    p.talk.said = (p.talk.said || 0) + ts.said;
+    p.talk.done[scene.key] = (p.talk.done[scene.key] || 0) + 1;
+
+    const r = {
+      kind: 'talk', title: scene.name, scene, log, score, axes, mistakes, better, next, homework,
+      said: ts.said, turns: n, polish, rungBefore: before, rungAfter: rung,
+      xp: 10 + Math.round(score / 5) + (spoke >= n ? 3 : 0), coins: 15 + ts.said * 3,
+      hatched: [], newBadges: [], levelUp: null, streak: null, questsDone: 0, egg: null
+    };
+    const questBefore = (p.daily.quests || []).filter(q => q.done).length;
+    p.stats.timeMs += Date.now() - ts.startedAt;
+    p.stats.battles++;
+    E.questProgress(p, 'battle', 1);
+    E.questProgress(p, 'talk', 1);
+    r.hatched = E.progressEggs(p);
+    applyRewards(p, r, questBefore);
+    p.log.unshift({ t: Date.now(), kind: 'talk', title: scene.name, acc: Math.round(100 * score / 25), xp: r.xp, n: ts.turns.length });
+    if (p.log.length > 60) p.log.length = 60;
+    Store.save();
+    return r;
+  };
+
+  E.talkHomeworkDone = function (p) {
+    const hw = p.talk.homework;
+    if (!hw || hw.done) return null;
+    hw.done = true;
+    p.talk.hwDone = (p.talk.hwDone || 0) + 1;
+    p.coins += 30;
+    const badges = E.checkBadges(p);
+    Store.save();
+    return { coins: 30, badges };
+  };
+
+  // Week in review: the same idea as asking a tutor for a weekly recap, built from the logs
+  E.talkWeekly = function (p, days) {
+    const from = U.today(-((days || 7) - 1));
+    const logs = p.talk.logs.filter(l => l.d >= from);
+    const out = { logs, from, to: U.today(), count: logs.length, said: U.sum(logs.map(l => l.said || 0)), score: null, axes: {}, mistakes: [], phrases: [], polish: [], scenes: [], focus: '', days: [] };
+    for (let i = (days || 7) - 1; i >= 0; i--) {
+      const d = U.today(-i);
+      const ds = logs.filter(l => l.d === d);
+      out.days.push({ d, n: ds.length, score: ds.length ? Math.round(U.sum(ds.map(l => l.score)) / ds.length) : 0 });
+    }
+    if (!logs.length) return out;
+    out.score = Math.round(U.sum(logs.map(l => l.score)) / logs.length);
+    AXES.forEach(a => {
+      const vs = logs.map(l => l.axes && l.axes[a.k]).filter(v => v != null);
+      out.axes[a.k] = vs.length ? Math.round(10 * U.sum(vs) / vs.length) / 10 : null;
+    });
+    const cnt = {};
+    logs.forEach(l => (l.mistakes || []).forEach(m => {
+      const k = U.norm(m.better) || m.better;
+      cnt[k] = cnt[k] || { better: m.better, said: m.said, note: m.note, n: 0 };
+      cnt[k].n++;
+    }));
+    out.mistakes = Object.values(cnt).sort((a, b) => b.n - a.n).slice(0, 5);
+    out.phrases = U.uniq([].concat.apply([], logs.map(l => l.phrases || []))).slice(0, 12);
+    const seenPolish = {};
+    [].concat.apply([], logs.map(l => l.polish || [])).forEach(x => { const k = U.norm(x.said) + '|' + U.norm(x.better); if (!seenPolish[k]) seenPolish[k] = x; });
+    out.polish = Object.values(seenPolish).slice(0, 8);
+    out.scenes = U.uniq(logs.map(l => l.name));
+    const low = AXES.filter(a => out.axes[a.k] != null).sort((x, y) => out.axes[x.k] - out.axes[y.k])[0];
+    out.focus = low ? FOCUS[low.k] : '';
+    out.lowest = low ? low.name : '';
+    return out;
+  };
+
+  // Plain-text version of the weekly recap, for the parent view (copy / share)
+  E.talkWeeklyText = function (p) {
+    const w = E.talkWeekly(p);
+    const L = ['【' + p.name + ' の 英会話ふりかえり】 ' + w.from + ' 〜 ' + w.to];
+    if (!w.count) { L.push('この1週間の おしゃべり記録はありません。'); return L.join('\n'); }
+    L.push('・回数: ' + w.count + '回 / 話した回数: ' + w.said + '回 / 平均スコア: ' + w.score + '/25');
+    L.push('・場面: ' + w.scenes.join('、'));
+    L.push('・観点別の平均: ' + AXES.filter(a => w.axes[a.k] != null).map(a => a.name + ' ' + w.axes[a.k] + '/5').join(' / '));
+    if (w.mistakes.length) {
+      L.push('・くりかえし つまずいた表現:');
+      w.mistakes.forEach(m => L.push('   「' + (m.said || '（聞き取れず）') + '」→ ' + m.better + '（' + m.n + '回）'));
+    }
+    if (w.phrases.length) { L.push('・言えた英語:'); w.phrases.forEach(s => L.push('   ' + s)); }
+    if (w.polish.length) { L.push('・もっと自然な言い方（完成版）:'); w.polish.forEach(x => L.push('   「' + x.said + '」→ ' + x.better)); }
+    L.push('・来週の重点: ' + w.focus);
+    if (p.talk.homework && !p.talk.homework.done) L.push('・宿題（未): ' + p.talk.homework.text);
+    return L.join('\n');
   };
 
   window.Engine = E;
