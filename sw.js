@@ -1,10 +1,10 @@
 /* sw.js — offline support. Network first (always fresh when online), cached copy when offline. */
-const VERSION = 'eq-v1';
+const VERSION = 'eq-v2';
 const SHELL = [
   './', './index.html', './manifest.webmanifest', './css/app.css',
   './js/util.js', './js/audio.js', './js/store.js', './js/content.js', './js/engine.js',
-  './js/ui_core.js', './js/ui_home.js', './js/ui_map.js', './js/ui_battle.js', './js/ui_travel.js', './js/ui_parent.js', './js/app.js',
-  './js/data/game.js', './js/data/abc.js', './js/data/phonics.js', './js/data/travel.js',
+  './js/ui_core.js', './js/ui_home.js', './js/ui_map.js', './js/ui_battle.js', './js/ui_travel.js', './js/ui_talk.js', './js/ui_parent.js', './js/app.js',
+  './js/data/game.js', './js/data/abc.js', './js/data/phonics.js', './js/data/travel.js', './js/data/talk.js',
   './js/data/g5.js', './js/data/g4.js', './js/data/g3.js', './js/data/p2.js', './js/data/g2.js',
   './icons/icon-192.png', './icons/icon-512.png', './icons/apple-touch-icon.png'
 ];

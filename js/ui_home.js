@@ -50,6 +50,8 @@
       const due = Engine.dueWords(p).length;
       let line = U.pick(D.buddyLines);
       const readyEgg = p.eggs.find(e => e.need - e.p <= 1);
+      const talkedToday = (p.talk.logs[0] || {}).d === U.today();
+      if (!talkedToday) line = 'きょうは まだ えいごで はなしてないよ。3分だけ おしゃべり しない？';
       if (due >= 5) line = 'ゾンビたんごが ' + due + 'たい あらわれた！ ふくしゅう しよう！';
       else if (readyEgg) line = 'たまごが もうすぐ かえりそう…！';
       else if (p.daily.goalDone) line = 'きょうの もくひょう クリア！ すごい！';
@@ -63,6 +65,17 @@
       // continue button
       const label = na.kind === 'lesson' ? '⚔️ ' + na.stage.name + ' ' + (na.lesson + 1) + ' へ すすむ' : na.kind === 'boss' ? '👑 ボス「' + na.stage.boss[0] + '」に ちょうせん' : na.kind === 'test' ? '🧙 ' + na.world.test + ' に ちょうせん' : '🏆 ぜんぶ クリア！ れんしゅうしよう';
       sc.appendChild(h('button.btn.primary.big.pulse', { on: { click: () => { App.sfx('tap'); App.startAction(na); } } }, label));
+
+      // one conversation a day — the habit the whole はなす mode is built around
+      sc.appendChild(h('button.btn.blue.big' + (talkedToday ? '' : '.pulse'), { on: { click: () => { App.sfx('tap'); App.go('talk'); } } },
+        talkedToday ? '🗣️ もういちど おしゃべりする' : '🗣️ きょうの おしゃべり（3分）'));
+
+      // homework from the last conversation
+      const hw = p.talk.homework;
+      if (hw && !hw.done) {
+        sc.appendChild(h('div.card.col.hw', h('div.section-title', h('h2', '📝 しゅくだい（5分）'), h('span.pill.blue', hw.name)), h('p', hw.text),
+          h('button.btn.gold.sm', { on: { click: () => { const r = Engine.talkHomeworkDone(p); if (!r) return; App.sfx('coin'); App.confetti(60); App.toast('🪙 +30 コイン', 'gold'); App.showBadges(r.badges, () => App.refresh()); } } }, 'やった！ できた')));
+      }
 
       // streak strip
       const days = [];
@@ -82,6 +95,7 @@
       // tiles
       sc.appendChild(h('div.grid3',
         h('button.tile-btn', { on: { click: () => App.go('map') } }, h('span.ic', '🗺️'), 'マップ'),
+        h('button.tile-btn', { on: { click: () => App.go('talk') } }, h('span.ic', '🗣️'), 'はなす', hw && !hw.done ? h('span.badge', '📝') : null),
         h('button.tile-btn' + (due ? '' : '.dim'), { on: { click: () => App.go('review') } }, h('span.ic', '🧟'), 'ふくしゅう', due ? h('span.badge', due) : null),
         h('button.tile-btn', { on: { click: () => App.go('travel') } }, h('span.ic', '✈️'), 'たびの じゅんび'),
         h('button.tile-btn', { on: { click: () => App.go('book') } }, h('span.ic', '📖'), 'ずかん', p.eggs.length ? h('span.badge', '🥚' + p.eggs.length) : null),
@@ -166,7 +180,7 @@
         })));
       } else if (tab === 'words') {
         const lv = params.lv || (Content.worldIndex(p.startLevel) >= 2 ? p.startLevel : 'g5');
-        sc.appendChild(h('div.worldtabs', Content.worlds.filter(w => w.key !== 'abc').concat([{ key: 'travel', emoji: '✈️', sub: 'たび' }]).map(w => h('button', { class: w.key === lv ? 'on' : '', on: { click: () => App.go('book', { tab: 'words', lv: w.key }) } }, w.emoji, w.sub))));
+        sc.appendChild(h('div.worldtabs', Content.worlds.filter(w => w.key !== 'abc').concat([{ key: 'travel', emoji: '✈️', sub: 'たび' }, { key: 'talk', emoji: '💬', sub: 'おしゃべり' }]).map(w => h('button', { class: w.key === lv ? 'on' : '', on: { click: () => App.go('book', { tab: 'words', lv: w.key }) } }, w.emoji, w.sub))));
         const keys = (Content.levelWords[lv] || []);
         const seen = keys.filter(k => p.words[k] && p.words[k].s), learned = keys.filter(k => p.words[k] && p.words[k].b >= 3);
         sc.appendChild(h('div.card', h('div.row.between', h('span', 'であった ' + seen.length + ' / ' + keys.length), h('span', 'おぼえた ' + learned.length)), h('div.bar', { style: { marginTop: '8px' } }, h('i', { style: { width: Math.round(100 * learned.length / Math.max(1, keys.length)) + '%' } }))));
