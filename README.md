@@ -64,7 +64,7 @@
 
 ### 公開版（GitHub Pages）
 
-<https://letter246.github.io/english-quest/> を iPad の Safari で開き、「共有 → ホーム画面に追加」。HTTPS なのでオフライン動作とマイクの発音チェックが使えます。ソースコードは <https://github.com/letter246/english-quest> にあります。
+<https://ki460.github.io/english-quest/> を iPad の Safari で開き、「共有 → ホーム画面に追加」。HTTPS なのでオフライン動作とマイクの発音チェックが使えます。ソースコードは <https://github.com/ki460/english-quest> にあります。
 
 ### いちばん簡単: 家の PC で配信する（同じ Wi-Fi 内）
 
