@@ -2,10 +2,10 @@
    Start-up is served from the cache (instant, works offline); each launch then re-downloads the
    shell in the background, so an update shows up the next time the app is opened.
    Anything missing from the cache falls through to the network. */
-const VERSION = 'eq-v2';
+const VERSION = 'eq-v3';
 const SHELL = [
   './', './index.html', './manifest.webmanifest', './css/app.css',
-  './js/util.js', './js/audio.js', './js/store.js', './js/content.js', './js/engine.js',
+  './js/util.js', './js/audio.js', './js/music.js', './js/store.js', './js/content.js', './js/engine.js',
   './js/ui_core.js', './js/ui_home.js', './js/ui_map.js', './js/ui_battle.js', './js/ui_travel.js', './js/ui_parent.js', './js/app.js',
   './js/data/game.js', './js/data/abc.js', './js/data/phonics.js', './js/data/travel.js',
   './js/data/g5.js', './js/data/g4.js', './js/data/g3.js', './js/data/p2.js', './js/data/g2.js',

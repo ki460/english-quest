@@ -20,7 +20,7 @@
     catch (e) { S.memoryOnly = true; }
   };
 
-  S.defaultSettings = () => ({ dailyGoal: 30, ttsRate: 0.9, sfx: true, speech: true, pin: '', hintJa: true });
+  S.defaultSettings = () => ({ dailyGoal: 30, ttsRate: 0.9, sfx: true, volume: 1, music: false, speech: true, pin: '', hintJa: true });
 
   S.newProfile = function (name, avatar, startLevel) {
     return {
@@ -42,6 +42,7 @@
       stats: { answered: 0, correct: 0, battles: 0, bosses: 0, speak: 0, perfect: 0, maxCombo: 0, newWords: 0, reviews: 0, days: {}, timeMs: 0, byType: {} },
       bankUse: {},     // question bank item usage counts (to avoid repeats)
       settings: S.defaultSettings(),
+      tips: {},        // one-time prompts already shown (e.g. musicAsked)
       log: []          // recent events for the parent view
     };
   };
@@ -49,7 +50,7 @@
   S.migrate = function (p) {
     const d = S.newProfile();
     for (const k in d) if (p[k] === undefined) p[k] = d[k];
-    ['settings', 'stats', 'items', 'travel', 'streak', 'daily'].forEach(sec => {
+    ['settings', 'stats', 'items', 'travel', 'streak', 'daily', 'tips'].forEach(sec => {
       if (!p[sec] || typeof p[sec] !== 'object') p[sec] = d[sec];
       for (const k in d[sec]) if (p[sec][k] === undefined) p[sec][k] = d[sec][k];
     });

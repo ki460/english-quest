@@ -21,7 +21,7 @@
       const v = props[k];
       if (v == null || v === false) continue;
       if (k === 'on') { for (const ev in v) el.addEventListener(ev, v[ev]); }
-      else if (k === 'style' && typeof v === 'object') Object.assign(el.style, v);
+      else if (k === 'style' && typeof v === 'object') { for (const sk in v) { if (sk.indexOf('--') === 0) el.style.setProperty(sk, v[sk]); else el.style[sk] = v[sk]; } }
       else if (k === 'class' || k === 'className') el.className += (el.className ? ' ' : '') + v;
       else if (k === 'html') el.innerHTML = v;
       else if (k === 'text') el.textContent = v;
@@ -109,17 +109,27 @@
   U.fmt = (n) => Number(n).toLocaleString('ja-JP');
   U.reducedMotion = () => window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-  // count-up animation for numbers
-  U.countUp = function (el, to, ms) {
-    const from = 0; const start = performance.now();
-    ms = U.reducedMotion() ? 0 : (ms || 600);
+  // count-up animation for numbers; onTick(progress 0..1) fires when the shown number changes (≥60 ms apart)
+  U.countUp = function (el, to, ms, onTick, from) {
+    if (from == null) from = Number(String(el.textContent || '0').replace(/[^\d.-]/g, '')) || 0;
+    const start = performance.now();
+    ms = U.reducedMotion() ? 0 : (ms == null ? 600 : ms);
+    if (!ms) { el.textContent = U.fmt(to); return; }
+    let shown = null, lastTick = -1, done = false;
     function step(t) {
+      if (done) return;
       const p = ms ? Math.min(1, (t - start) / ms) : 1;
       const eased = 1 - Math.pow(1 - p, 3);
-      el.textContent = U.fmt(Math.round(from + (to - from) * eased));
-      if (p < 1) requestAnimationFrame(step);
+      const v = Math.round(from + (to - from) * eased);
+      if (v !== shown) {
+        shown = v; el.textContent = U.fmt(v);
+        if (onTick && p < 1 && t - lastTick >= 60) { lastTick = t; try { onTick(p); } catch (e) { /* ignore */ } }
+      }
+      if (p < 1) requestAnimationFrame(step); else done = true;
     }
     requestAnimationFrame(step);
+    // frames stop in a hidden window: land on the final number anyway
+    setTimeout(() => { if (!done) { done = true; el.textContent = U.fmt(to); } }, ms + 400);
   };
 
   U.uid = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36);

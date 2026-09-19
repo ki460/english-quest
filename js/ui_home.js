@@ -11,8 +11,8 @@
       const profiles = Store.data.profiles;
       sc.appendChild(h('div.logo', 'English Quest', h('small', 'えいごクエスト — たたかって おぼえる えいご')));
       sc.appendChild(h('div.col', { style: { width: 'min(100%, 420px)' } },
-        profiles.map(p => h('button.profile-card', { on: { click: () => { App.sfx('tap'); App.p = p; Store.setCurrent(p.id); App.go('home'); } } },
-          App.avatarEl(p), h('div', h('div.n', p.name), h('div.s', 'Lv.' + Engine.levelFor(p.xp) + ' ・ 🔥' + p.streak.count + '日 ・ 単語 ' + Engine.learnedCount(p))))),
+        profiles.map(p => h('button.profile-card', { on: { click: () => { App.sfx('tap'); App.p = p; App.applySettings(p); Store.setCurrent(p.id); App.go('home'); } } },
+          App.avatarEl(p), h('div', h('div.n', p.name), h('div.s', 'Lv.' + Engine.levelFor(p.xp) + ' ・ 🔥' + p.streak.count + 'にち ・ たんご ' + Engine.learnedCount(p))))),
         h('button.btn' + (profiles.length ? '' : '.primary.big'), { on: { click: () => App.go('newProfile') } }, profiles.length ? '＋ あたらしい ぼうけんしゃ' : 'ぼうけんを はじめる！')));
       sc.appendChild(h('p.tiny.muted', 'iPadの Safari で ひらいて、共有 → ホーム画面に追加 すると アプリみたいに つかえるよ'));
     }
@@ -34,8 +34,11 @@
       sc.appendChild(h('div.card.col', h('div.field', h('label', 'どこから はじめる？（あとで まえの ステージも あそべるよ）'), seg)));
       sc.appendChild(h('div.row', h('button.btn.ghost', { on: { click: () => App.go('profiles') } }, 'もどる'), h('button.btn.primary', { style: { flex: 1 }, on: { click: () => {
         const n = name.value.trim(); if (!n) { name.focus(); App.toast('なまえを いれてね'); return; }
-        const p = Store.newProfile(n, avatar, start); Store.addProfile(p); App.p = p; App.sfxOn = true;
+        const p = Store.newProfile(n, avatar, start);
+        p.eggs.push({ id: U.uid(), kind: 'normal', p: 0, need: 3 });   // a starter egg: the first buddy hatches in session one
+        Store.addProfile(p); App.p = p; App.applySettings(p);
         Engine.ensureDaily(p); App.save(); App.sfx('win'); App.confetti(); App.go('home');
+        setTimeout(() => App.toast('🥚 たまごを もらった！ 3かい たたかうと かえるよ', 'gold'), 900);
       } } }, 'スタート！')));
     }
   };
@@ -54,11 +57,21 @@
       else if (readyEgg) line = 'たまごが もうすぐ かえりそう…！';
       else if (p.daily.goalDone) line = 'きょうの もくひょう クリア！ すごい！';
       const goalPct = Math.min(100, Math.round(100 * p.daily.xp / p.settings.dailyGoal));
+      const nextEgg = p.eggs.slice().sort((a, b) => (a.need - a.p) - (b.need - b.p))[0];
+      const eggChip = nextEgg ? h('span.egg-chip' + (nextEgg.need - nextEgg.p <= 1 ? '.ready' : ''), (nextEgg.kind === 'gold' ? '🪺' : '🥚') + ' あと ' + (nextEgg.need - nextEgg.p) + 'かい') : null;
+
+      // the goal ring fills from where it was last time this screen was shown
+      const ringFrom = App._ringPct && App._ringPct.id === p.id ? App._ringPct.pct : goalPct;
+      const ring = h('div.goal-ring' + (p.daily.goalDone ? '.done' : ''), { style: { '--p': ringFrom } }, h('span', p.daily.xp + '/' + p.settings.dailyGoal, h('br'), 'XP'));
+      if (ringFrom !== goalPct && !U.reducedMotion()) { const t0 = performance.now(); const tick = (t) => { const k = Math.min(1, (t - t0) / 700); ring.style.setProperty('--p', Math.round(ringFrom + (goalPct - ringFrom) * (1 - Math.pow(1 - k, 3)))); if (k < 1) requestAnimationFrame(tick); }; requestAnimationFrame(tick); }
+      else ring.style.setProperty('--p', goalPct);
+      App._ringPct = { id: p.id, pct: goalPct };
+      if (p.daily.goalDone && !p.daily.goalCelebrated) { p.daily.goalCelebrated = true; App.save(); setTimeout(() => { if (ring.isConnected) { App.sfx('star', 3); App.anim(ring, 'ripple', 1100); } }, 500); }
 
       sc.appendChild(h('div.hero',
         h('div.buddy', { on: { click: () => { App.sfx('pop'); if (buddy) App.say(buddy.name); } } }, buddy ? buddy.emoji : '🥚'),
-        h('div.bubble', line, buddy ? h('div.tiny.muted', h('span.en', buddy.name) + ' / ' + buddy.ja) : h('div.tiny.muted', 'たまごを かえすと なかまが できるよ')),
-        h('div.goal-ring', { style: { '--p': goalPct } }, h('span', p.daily.xp + '/' + p.settings.dailyGoal, h('br'), 'XP'))));
+        h('div.bubble', line, h('div.tiny.muted', buddy ? [h('span.en', buddy.name), ' / ' + buddy.ja, eggChip ? ' ' : null, eggChip] : (eggChip ? ['たまごが そだっているよ ', eggChip] : 'たまごを かえすと なかまが できるよ'))),
+        ring));
 
       // continue button
       const label = na.kind === 'lesson' ? '⚔️ ' + na.stage.name + ' ' + (na.lesson + 1) + ' へ すすむ' : na.kind === 'boss' ? '👑 ボス「' + na.stage.boss[0] + '」に ちょうせん' : na.kind === 'test' ? '🧙 ' + na.world.test + ' に ちょうせん' : '🏆 ぜんぶ クリア！ れんしゅうしよう';
@@ -74,7 +87,7 @@
       (p.daily.quests || []).forEach(q => {
         const row = h('div.quest' + (q.done ? '.done' : ''),
           h('div.q', h('div.t', (q.claimed ? '✅ ' : q.done ? '🌟 ' : '') + q.text), h('div.bar.blue', { style: { marginTop: '4px' } }, h('i', { style: { width: Math.round(100 * q.p / q.target) + '%' } })), h('div.tiny.muted.num', q.p + ' / ' + q.target)),
-          q.done && !q.claimed ? h('button.btn.gold.sm.pulse', { on: { click: () => { const r = Engine.claimQuest(p, q); App.sfx('coin'); App.toast('🪙 +15 コイン', 'gold'); if (r && r.bonus) { App.sfx('chest'); App.confetti(); App.modal({ emoji: '🎁', title: 'ぜんぶ クリア！', body: 'たからばこ と たまご を もらった！', buttons: [{ label: 'あける！', onClick: () => { Engine.openChest(p, r.bonus.chest); App.toast('🪙 +' + r.bonus.chest.coins + '  💎 +' + r.bonus.chest.gems, 'gold'); App.refresh(); } }], locked: true }); } else App.refresh(); } } }, 'うけとる') : null);
+          q.done && !q.claimed ? h('button.btn.gold.sm.pulse', { on: { click: (e) => { e.currentTarget.disabled = true; App.questClaim(q, () => App.refresh()); } } }, 'うけとる') : null);
         qcard.appendChild(row);
       });
       sc.appendChild(qcard);
@@ -89,6 +102,19 @@
         h('button.tile-btn', { on: { click: () => App.go('badges') } }, h('span.ic', '🏅'), 'バッジ', h('span.tiny.muted', p.badges.length + '/' + Content.badges.length))));
 
       sc.appendChild(h('div.row.center', h('button.btn.ghost.sm', { on: { click: () => App.go('profiles') } }, '👤 ぼうけんしゃを かえる')));
+
+      // once, after the first battle: let the child decide about battle music
+      if (!p.tips.musicAsked && p.stats.battles >= 1 && window.Music && !App._musicPrompt) {
+        App._musicPrompt = true;
+        setTimeout(() => {
+          App._musicPrompt = false;
+          if (App.screen !== 'home' || p.tips.musicAsked) return;
+          p.tips.musicAsked = true; App.save();
+          const decide = (on) => { p.settings.music = on; App.save(); Music.setEnabled(on); if (on) App.sfx('coin'); };
+          App.modal({ emoji: '🎶', title: p.stats.battles <= 1 ? 'バトルに おんがくを つける？' : 'あたらしい おとが きたよ！', body: 'バトルの ときに おんがくを ならす？（バトルがめんの 🎵 で いつでも かえられるよ）',
+            buttons: [{ label: '🎵 ならす！', cls: 'primary', onClick: () => decide(true) }, { label: 'いまは いい', cls: 'ghost', onClick: () => decide(false) }], locked: true });
+        }, 700);
+      }
     }
   };
 
@@ -120,7 +146,7 @@
     hud: true, tab: 'home',
     render(sc) {
       const p = App.p;
-      const buy = (item) => { const r = Engine.buy(p, item); if (!r.ok) { App.sfx('wrong'); App.toast(r.reason); return; } App.sfx('coin'); App.toast(item.emoji + ' ' + item.name + ' を かった！', 'good'); App.refresh(); };
+      const buy = (item) => { const r = Engine.buy(p, item); if (!r.ok) { App.sfx('pop'); App.toast(r.reason); return; } App.sfx('coin'); App.toast(item.emoji + ' ' + item.name + ' を かった！', 'good'); App.refresh(); };
       sc.appendChild(h('h1', '🛒 ショップ'));
       sc.appendChild(h('div.row', h('span.stat', '🪙 ' + U.fmt(p.coins)), h('span.stat', '💎 ' + p.gems), h('span.stat', '🧪 ×' + p.items.potions), h('span.stat', '🧊 ×' + p.items.freezes)));
       sc.appendChild(h('h2', 'アイテム'));
@@ -155,7 +181,7 @@
       if (tab === 'buddies') {
         if (p.eggs.length) {
           sc.appendChild(h('h2', '🥚 たまご（バトルすると そだつ）'));
-          sc.appendChild(h('div.egg-row', p.eggs.map(e => h('div.egg', h('div.e', e.kind === 'gold' ? '🪺' : '🥚'), h('div.bar.gold', h('i', { style: { width: Math.round(100 * e.p / e.need) + '%' } })), h('div.tiny.muted', 'あと ' + (e.need - e.p) + '回')))));
+          sc.appendChild(h('div.egg-row', p.eggs.map(e => h('div.egg', h('div.e', e.kind === 'gold' ? '🪺' : '🥚'), h('div.bar.gold', h('i', { style: { width: Math.round(100 * e.p / e.need) + '%' } })), h('div.tiny.muted', 'あと ' + (e.need - e.p) + 'かい')))));
         }
         sc.appendChild(h('h2', '🐣 なかま ' + p.buddies.length + ' / ' + Content.buddies.length));
         sc.appendChild(h('p.tiny.muted', 'タップすると いっしょに たたかう なかまに できるよ（レア: +2 / エピック: +3 ダメージ）'));

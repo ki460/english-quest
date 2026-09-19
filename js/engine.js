@@ -52,7 +52,7 @@
   // ---------- daily loop ----------
   E.ensureDaily = function (p) {
     const today = U.today();
-    if (p.daily.date === today) return false;
+    if (p.daily.date === today) { E.refreshQuestText(p); return false; }
     const yesterday = U.today(-1);
     // streak: a missed day breaks it unless a freeze covers exactly one missed day
     if (p.streak.last && p.streak.last !== today && p.streak.last !== yesterday) {
@@ -60,9 +60,13 @@
       else { p.streak.count = 0; }
     }
     p.daily.login = (p.daily.date === yesterday) ? (p.daily.login || 0) + 1 : 1;
-    p.daily.date = today; p.daily.xp = 0; p.daily.chest = false; p.daily.goalDone = false;
+    p.daily.date = today; p.daily.xp = 0; p.daily.chest = false; p.daily.goalDone = false; p.daily.goalCelebrated = false;
     p.daily.quests = E.rollQuests(p);
     return true;
+  };
+  // quest wording lives in the data file; refresh saved quests so old profiles pick up rewording
+  E.refreshQuestText = function (p) {
+    (p.daily.quests || []).forEach(q => { const def = D().quests.find(x => x[0] === q.id); if (def) q.text = def[1].replace('{n}', q.target); });
   };
   E.rollQuests = function (p) {
     const tier = E.questTier(p);
@@ -583,7 +587,10 @@
     if (countsAsBattle) { p.stats.battles++; E.questProgress(p, 'battle', 1); }
     if (r.perfect && countsAsBattle) { p.stats.perfect++; E.questProgress(p, 'perfect', 1); }
     if (r.egg) p.eggs.push(r.egg);
-    if (countsAsBattle || s.kind === 'test') r.hatched = E.progressEggs(p);
+    if (countsAsBattle || s.kind === 'test') {
+      r.hatched = E.progressEggs(p);
+      r.eggs = p.eggs.map(e => ({ kind: e.kind, p: e.p, need: e.need }));   // after the +1, for the result screen's egg strip
+    }
 
     // XP, level, coins, daily goal
     const before = E.levelFor(p.xp);
