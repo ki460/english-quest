@@ -39,7 +39,7 @@
       items: { hats: [], hat: '', potions: 0, freezes: 1 },
       badges: [],
       travel: { done: {}, missions: {}, tsuujita: 0 },
-      stats: { answered: 0, correct: 0, battles: 0, bosses: 0, speak: 0, perfect: 0, maxCombo: 0, newWords: 0, reviews: 0, days: {}, timeMs: 0, byType: {} },
+      stats: { answered: 0, correct: 0, battles: 0, bosses: 0, speak: 0, perfect: 0, maxCombo: 0, newWords: 0, reviews: 0, rush: 0, days: {}, timeMs: 0, byType: {} },
       bankUse: {},     // question bank item usage counts (to avoid repeats)
       settings: S.defaultSettings(),
       tips: {},        // one-time prompts already shown (e.g. musicAsked)

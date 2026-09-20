@@ -90,7 +90,7 @@
       const retryLesson = !!(nextL && p.lessons[nextL.id] && p.lessons[nextL.id].n > 0);
       const nudge = nextL && !retryLesson && nextL.focus !== 'study' ? Engine.suggestReview(p) : 0;
       const label = nudge ? '🧟 ゾンビを たおしてから すすもう！（' + nudge + 'たい）'
-        : nextL ? (nextL.focus === 'study' ? '📖 ' + na.stage.name + ' の ' + (na.stage.kind === 'abc' ? 'もじ' : 'たんご') + 'を おぼえる' : retryLesson ? '🔁 ' + na.stage.name + ' ' + nextL.label + ' を もういちど' : '⚔️ ' + na.stage.name + ' ' + nextL.label + ' へ すすむ')
+        : nextL ? (nextL.focus === 'study' ? '📖 ' + na.stage.name + ' の ' + (na.stage.kind === 'abc' ? 'もじ' : 'たんご') + 'を おぼえる' : retryLesson ? '🔁 おぼえてから ' + na.stage.name + ' ' + nextL.label + ' を もういちど' : '⚔️ ' + na.stage.name + ' ' + nextL.label + ' へ すすむ')
         : na.kind === 'boss' ? '👑 ボス「' + na.stage.boss[0] + '」に ちょうせん'
         : na.kind === 'practice' ? '💪 ' + na.stage.name + ' を れんしゅうして ボスに そなえる'
         : na.kind === 'test' ? '🧙 ' + na.world.test + ' に ちょうせん' : '🏆 ぜんぶ クリア！ れんしゅうしよう';

@@ -9,6 +9,7 @@
   const BOSS_PASS = { mastery: 0.8, easy: 0.7 };
   const PRACTICE_PASS = 0.7;                        // a lost boss reopens after a stage practice at this accuracy
   const REVIEW_NUDGE = 8;                           // this many zombies: the big button points at the review first
+  const RUSH_MS = 1200;                             // a miss faster than this is a tap, not an answer
   const C = () => window.Content;
   const D = () => window.ENG_DATA;
 
@@ -179,6 +180,10 @@
   G.intro = (p, key) => ({ type: 'intro', word: key, gen: ['intro', key] });
   // study card: look, listen, say it, press ⭕ — always counts as right (a stage begins with a lesson of these)
   G.study = (p, key) => ({ type: 'study', word: key, gen: ['study', key] });
+  const CARD = { intro: 1, abcIntro: 1, study: 1, abcStudy: 1 };
+  E.isCard = (ex) => !!CARD[ex.type];
+  // a card slipped into a quiz as a free step (not scored, 1 XP): after a miss, ahead of a retried lesson, or when rushing
+  const cardFor = (key, fix) => Object.assign(key.indexOf('abc:') === 0 ? G.abcStudy(null, key.slice(4)) : G.study(null, key), { free: true, fix: !!fix });
 
   G.pic4 = function (p, key) {
     const w = W(key);
@@ -342,7 +347,8 @@
       kind: 'lesson', title: '', steps: [], i: 0, combo: 0, maxCombo: 0, correct: 0, wrong: 0, answered: 0, kills: 0, overkill: 0,
       xp: 0, wrongKeys: {}, retries: {}, startedAt: Date.now(), results: [], hasHp: true, waves: true, dmgMul: 1
     }, o);
-    s.scored = s.steps.filter(x => x.type !== 'intro' && x.type !== 'abcIntro').length;
+    s.scored = s.steps.filter(x => x.type !== 'intro' && x.type !== 'abcIntro' && !x.free).length;
+    s.fixed = {}; s.rush = 0; s.slow = false;
     const hpMul = s.kind === 'boss' ? 0.7 : 1;
     s.monster = Object.assign({ hp: 0 }, s.monster || {});
     s.monster.max = Math.max(10, Math.round(s.scored * 10 * hpMul)); s.monster.hp = s.monster.max;
@@ -363,7 +369,7 @@
   // met before but still shaky (never right, or knocked back to box 0): show the word card again
   E.reteach = (p, key) => { const w = p.words[key]; return !!w && w.s > 0 && w.b === 0 && w.w > 0; };
   // two tries without ★★: the next one shows every card again and asks only the easiest two forms (no spelling, listening or grammar)
-  E.gentle = (p, lesson) => { const L = p.lessons[lesson.id]; return E.mastery(p) && !!L && L.n >= 2 && !E.lessonCleared(p, lesson); };
+  E.gentle = (p, lesson) => { const L = p.lessons[lesson.id]; return E.mastery(p) && !!L && (L.n >= 2 || !!L.slow) && !E.lessonCleared(p, lesson); };
   const gentlePractice = (p, key) => (jaMode(p) ? G.en4 : (W(key).e ? G.pic4 : G.ja4))(p, key);
   function vocabPractice(p, key) {
     const opts = jaMode(p) ? ['en4', 'en4', 'listen4'] : ['listen4', 'en4'];
@@ -397,17 +403,21 @@
       return newSession(p, { kind: 'lesson', study: true, stageId, lessonId: lesson.id, lessonIdx: li, world: st.world, title: st.name + ' ' + lesson.label, steps, monster: mon(st.monster), waveList: C().world(st.world).monsters });
     }
     const gentle = E.gentle(p, lesson);
+    // played before without ★★: おぼえる → レッスン in one go — every word as a card (⭕) before the questions
+    const again = !!(p.lessons[lesson.id] && p.lessons[lesson.id].n > 0);
+    const warm = again ? lesson.words.map(k => cardFor(k, true)) : [];
     if (st.kind === 'abc') steps = abcLessonSteps(p, st, lesson);
     else if (st.kind === 'phonics') {
       // the rhyme question (read four words, find the family) waits until the third sound pattern
       const pool = gentle ? [G.pic4, G.listen4] : st.idx < 2 ? [G.spell, G.listen4, G.pic4] : [G.spell, G.rhyme, G.listen4, G.pic4];
-      lesson.words.forEach(k => { if (gentle || E.isNew(p, k)) steps.push(G.intro(p, k)); steps.push(U.pick([G.pic4, G.listen4])(p, k)); });
+      lesson.words.forEach(k => { if (!again && E.isNew(p, k)) steps.push(G.intro(p, k)); steps.push(U.pick([G.pic4, G.listen4])(p, k)); });
       steps = steps.concat(U.shuffle(lesson.words.map(k => U.pick(pool)(p, k))));
     } else {
-      lesson.words.forEach(k => { if (gentle || E.isNew(p, k) || E.reteach(p, k)) steps.push(G.intro(p, k)); steps.push(recog(p, k)); });
+      lesson.words.forEach(k => { if (!again && (E.isNew(p, k) || E.reteach(p, k))) steps.push(G.intro(p, k)); steps.push(recog(p, k)); });
       steps = steps.concat(U.shuffle(lesson.words.map(k => gentle ? gentlePractice(p, k) : vocabPractice(p, k))), gentle ? [] : grammarSteps(p, st.world, 1));
     }
-    return newSession(p, { kind: 'lesson', stageId, lessonId: lesson.id, lessonIdx: li, world: st.world, title: st.name + ' ' + lesson.label, steps, gentle, monster: mon(st.monster), waveList: C().world(st.world).monsters });
+    steps = warm.concat(steps);
+    return newSession(p, { kind: 'lesson', stageId, lessonId: lesson.id, lessonIdx: li, world: st.world, title: st.name + ' ' + lesson.label, steps, gentle, again, monster: mon(st.monster), waveList: C().world(st.world).monsters });
   };
   function abcLessonSteps(p, st, lesson) {
     const Ls = st.letters, pool = Ls;
@@ -517,13 +527,14 @@
 
   E.answer = function (p, s, ex, correct, meta) {
     meta = meta || {};
-    const res = { correct, dmg: 0, crit: false, killed: false, newMonster: null, rescued: false, potion: false, retryQueued: false, xp: 0 };
-    s.answered++; p.stats.answered++;
-    const t = ex.type; p.stats.byType[t] = (p.stats.byType[t] || 0) + 1;
+    const res = { correct, dmg: 0, crit: false, killed: false, newMonster: null, rescued: false, potion: false, retryQueued: false, fixQueued: false, slowed: false, xp: 0 };
+    const t = ex.type, card = !!CARD[t], free = !!ex.free;
+    s.answered++; if (!card) p.stats.answered++;
+    p.stats.byType[t] = (p.stats.byType[t] || 0) + 1;
     if (correct) {
       s.combo++; s.maxCombo = Math.max(s.maxCombo, s.combo); p.stats.maxCombo = Math.max(p.stats.maxCombo, s.combo);
-      if (!ex.retry) s.correct++;
-      p.stats.correct++;
+      if (!ex.retry && !free) s.correct++;
+      if (!card) p.stats.correct++;
       let dmg = 10 + Math.min(10, Math.max(0, s.combo - 1) * 2) + s.buddyBonus;
       if (Math.random() < 0.12) { dmg *= 2; res.crit = true; }
       res.dmg = dmg;
@@ -541,10 +552,11 @@
       let xp = s.kind === 'test' ? 2 : 1;
       if (s.combo >= 5) xp += 1;
       if (ex.retry) xp = 0;
+      if (free) xp = 1;
       s.xp += xp; res.xp = xp;
-      if (t === 'study' || t === 'abcStudy') E.markSeen(p, ex.word);                       // looking is not remembering: no box step
+      if (card) { if (ex.word) E.markSeen(p, ex.word); }                                 // looking is not remembering: no box step
       else if (ex.word && !ex.retry) E.srsCorrect(p, ex.word); else if (ex.word) E.markSeen(p, ex.word);
-      E.questProgress(p, 'correct', 1);
+      if (!card) E.questProgress(p, 'correct', 1);
       if (ex.prompt && ex.prompt.listen) E.questProgress(p, 'listen', 1);
       if (t === 'speak') { p.stats.speak++; E.questProgress(p, 'speak', 1); }
       E.questProgress(p, 'combo', s.combo);
@@ -562,6 +574,15 @@
         s.retries[ex.gen.join('|')] = 1;
         try { s.steps.push(E.regen(p, ex)); res.retryQueued = true; } catch (e) { /* ignore */ }
       }
+      // after a miss the word's card comes next (look, listen, ⭕); the question itself returns later
+      if (s.kind !== 'test' && ex.word && !s.fixed[ex.word] && C().words[ex.word]) {
+        s.fixed[ex.word] = true; s.steps.splice(s.i + 1, 0, cardFor(ex.word, true)); res.fixQueued = true;
+      }
+      // a miss within 1.2 s is a tap, not an answer; the second one puts a card ahead of every remaining question
+      if (s.kind !== 'test' && meta.ms != null && meta.ms < RUSH_MS) {
+        s.rush++; p.stats.rush = (p.stats.rush || 0) + 1;
+        if (s.rush >= 2 && !s.slow) { s.slow = true; slowDown(s); res.slowed = true; }
+      }
     }
     if (ex.bank) p.bankUse[ex.bank] = (p.bankUse[ex.bank] || 0) + 1;
     s.results.push({ ex, correct, retry: !!ex.retry });
@@ -569,6 +590,15 @@
     return res;
   };
   E.isOver = (s) => s.i >= s.steps.length;
+  function slowDown(s) {
+    const seen = new Set(Object.keys(s.fixed));
+    for (let j = s.i + 1; j < s.steps.length; j++) {
+      const st = s.steps[j];
+      if (CARD[st.type]) { if (st.word) seen.add(st.word); continue; }
+      if (!st.word || seen.has(st.word) || !C().words[st.word]) continue;
+      s.steps.splice(j, 0, cardFor(st.word, false)); seen.add(st.word); j++;
+    }
+  }
 
   // ---------- rewards ----------
   E.makeChest = function (force) {
@@ -624,6 +654,8 @@
       const was = E.lessonCleared(p, lesson);
       L.n++; L.s = Math.max(L.s, r.stars);
       r.cleared = E.lessonCleared(p, lesson); r.first = r.cleared && !was;     // "first clear" = the first ★★, not the first play
+      L.slow = !!s.slow && !r.cleared;                                          // rushed through it: the next try is the gentle one
+      r.rush = s.rush || 0;
       const st = p.stages[s.stageId] || (p.stages[s.stageId] = { boss: false, done: 0 });
       st.done = E.lessonsDone(p, C().stage(s.stageId));
       r.xp += s.study ? 6 : r.cleared ? 10 : 4; r.coins = s.study ? 15 + s.kills * 2 : 20 + r.stars * 5 + s.kills * 3 + Math.floor(s.overkill / 10);
@@ -675,7 +707,7 @@
     if (E.touchStreak(p)) r.streak = p.streak.count;
     r.questsDone = (p.daily.quests || []).filter(q => q.done).length - questBefore;
     r.newBadges = E.checkBadges(p);
-    p.log.unshift({ t: Date.now(), kind: s.kind, title: s.title, acc: Math.round(acc * 100), xp: r.xp, n: s.scored });
+    p.log.unshift({ t: Date.now(), kind: s.kind, title: s.title, acc: Math.round(acc * 100), xp: r.xp, n: s.scored, rush: s.rush || 0 });
     if (p.log.length > 60) p.log.length = 60;
     Store.save();
     return r;

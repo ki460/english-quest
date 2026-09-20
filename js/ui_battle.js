@@ -13,7 +13,7 @@
       const isTest = s.kind === 'test';
       const quick = U.reducedMotion();
       const anim = App.anim;
-      let ex = null, locked = false, qid = 0, breaking = false, lowWarned = false;
+      let ex = null, locked = false, qid = 0, breaking = false, lowWarned = false, shownAt = 0;
       // timers that must die with the screen
       const later = (ms, fn) => setTimeout(() => { if (sc.isConnected) fn(); }, quick ? Math.min(ms, 250) : ms);
 
@@ -86,7 +86,7 @@
       // ----- question rendering -----
       function next() {
         if (Engine.isOver(s)) return finish();
-        ex = Engine.current(s); locked = false; qid++;
+        ex = Engine.current(s); locked = false; qid++; shownAt = Date.now();
         if (window.Music) { Music.hush(false); if (p.settings.music && App.sfxOn && !Music.playing) { const t = Music.trackFor(s); if (t) Music.play(t); } }
         U.clear(qarea); bars();
         const R = renderers[ex.type] || renderers.choice;
@@ -158,7 +158,7 @@
       function submit(correct, details) {
         if (locked) return; locked = true;
         const myQ = qid, prevCombo = s.combo, prevHp = s.player.hp, oldMax = s.monster.max;
-        const res = Engine.answer(p, s, ex, correct);
+        const res = Engine.answer(p, s, ex, correct, { ms: Date.now() - shownAt });
         if (correct) {
           // beat 1 (0 ms): ピンポーン + green vignette + the answer pops + XP floats
           App.sfx('correct', isTest ? Math.min(s.combo, 5) : s.combo);
@@ -229,7 +229,8 @@
             later(450, () => { App.sfx('cheer'); App.toast((s.buddy ? s.buddy.emoji + ' ' : '') + 'おうえんしてるよ！ おちついて いこう', 'good'); if (buddyEl) anim(buddyEl, 'hop', 400); });
           }
           if (prevCombo >= 2) { breaking = true; anim(comboPill, 'break', 600); later(600, () => { breaking = false; bars({ keepMonster: true }); }); }
-          feedback(false, ex, res.retryQueued ? '🔁 あとで もういちど チャンス！' : details, res.retryQueued ? 'もういちど チャンス！' : U.pick(['だいじょうぶ！', 'つぎは できる！', 'おしい！']));
+          feedback(false, ex, res.fixQueued ? '👀 つぎの カードで たしかめよう' + (res.retryQueued ? '。あとで もういちど チャンス！' : '') : res.retryQueued ? '🔁 あとで もういちど チャンス！' : details, res.retryQueued ? 'もういちど チャンス！' : U.pick(['だいじょうぶ！', 'つぎは できる！', 'おしい！']));
+          if (res.slowed) later(900, () => App.toast('🐢 ゆっくり いこう。ここからは カードを みてから こたえるよ'));
           const ct = ex.choices ? (ex.choices[ex.answer].tts || (ex.choices[ex.answer].label && /[a-zA-Z]/.test(ex.choices[ex.answer].label) ? ex.choices[ex.answer].label : null)) : (ex.display || ex.target || null);
           if (ct) later(550, () => { if (qid === myQ) App.say(ct); });
         }
@@ -270,14 +271,14 @@
         const w = Content.words[ex.word];
         const ps = Content.phonicsStage(ex.word);
         const emoji = w.e ? h('div.emoji', { on: { click: () => { App.sfx('pop'); App.say(w.w); } } }, w.e) : null;
-        studyCard([h('span.newtag', 'おぼえよう'), emoji,
+        studyCard([h('span.newtag', ex.fix ? 'もういちど みよう' : ex.free ? 'さきに みよう' : 'おぼえよう'), emoji,
           ps && ps.hl ? App.hlWord('div.word.en', w.w, ps.hl) : h('div.word.en', { style: w.lv === 'travel' ? { fontSize: '1.9rem' } : null }, w.w), h('div.ja', w.ja),
           ps ? h('div.rule', '🔎 ' + ps.hint) : null,
           h('div.row.center.wrap', App.speakBtn(w.w, { xl: true }), App.slowBtn(w.w))], () => App.say(w.w));
       };
       renderers.abcStudy = function (ex) {
         const e = ex.entry, L = ex.letter;
-        studyCard([h('span.newtag', 'おぼえよう'), h('div.letter-pair', L, h('small', L.toLowerCase())), h('div.emoji', { on: { click: () => { App.sfx('pop'); App.say(e[2]); } } }, e[3]), h('div.word.en', e[2]), h('div.ja', e[4]),
+        studyCard([h('span.newtag', ex.fix ? 'もういちど みよう' : ex.free ? 'さきに みよう' : 'おぼえよう'), h('div.letter-pair', L, h('small', L.toLowerCase())), h('div.emoji', { on: { click: () => { App.sfx('pop'); App.say(e[2]); } } }, e[3]), h('div.word.en', e[2]), h('div.ja', e[4]),
           h('div.row.center.wrap', App.speakBtn(L + '.', { xl: true, label: ' ' + L }), App.speakBtn(e[2], { label: ' ' + e[2] }))], () => App.say(L + '. ' + L.toLowerCase() + '. ' + e[2] + '.', { rate: 0.8 }));
       };
       renderers.abcIntro = function (ex) {
@@ -474,7 +475,7 @@
       if (s.kind === 'test' && !win) sc.appendChild(h('div.card', h('p', '70点で ごうかく。まちがえた ところを ふくしゅうして、また ちょうせんしよう！'), h('p.small.muted', 'まちがえた もんだい： ' + s.results.filter(x => !x.correct).map(x => x.ex.prompt && (x.ex.prompt.text || x.ex.reveal) ? (x.ex.prompt.text || x.ex.reveal) : x.ex.target || '').filter(Boolean).slice(0, 6).join(' / '))));
       if (partial) {
         const need = Math.ceil(0.8 * r.total) - r.correct;
-        sc.appendChild(h('div.card', h('p', need <= 3 ? h('b', 'あと ' + need + 'もん せいかいで ★★ だった！') : null, need <= 3 ? h('br') : null, '★★（80%いじょう）で つぎの レッスンが ひらくよ。' + (s.gentle ? 'カードを よく みて、もういちど！' : 'まちがえた たんごは カードで もういちど おぼえてから、さいちょうせん！'))));
+        sc.appendChild(h('div.card', h('p', need <= 3 ? h('b', 'あと ' + need + 'もん せいかいで ★★ だった！') : null, need <= 3 ? h('br') : null, '★★（80%いじょう）で つぎの レッスンが ひらくよ。つぎは さきに カードを ぜんぶ みてから もんだいだよ。' + (r.rush >= 2 ? ' はやおしは もったいない！ よんでから こたえよう 🐢' : ''))));
       }
       if (s.kind === 'boss' && !win) sc.appendChild(h('div.card', 'ボスは ' + Math.round(100 * Engine.bossPass(p)) + '%いじょう せいかいで たおせるよ。' + (bossLocked ? 'ステージの れんしゅうで 70%いじょう とると、もういちど ちょうせんできる！' : 'ステージの たんごを れんしゅうして もういちど！')));
       if (s.kind === 'practice' && r.wasLocked) sc.appendChild(h('div.card', r.unlocked ? '👑 ボスに もういちど ちょうせんできるように なった！' : 'あと すこし！ 70%いじょうで ボスに ちょうせんできるよ。もういちど れんしゅうしよう！'));

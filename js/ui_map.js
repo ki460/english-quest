@@ -53,7 +53,7 @@
       h('div.card.soft', h('div.row.between', h('span.bold', 'レッスン'), h('span.num', (cleared ? st.lessons.length : done) + ' / ' + st.lessons.length)),
         h('div.lchips', st.lessons.map(lessonChip), h('span.lchip.bossc' + (cleared ? '.on' : ''), '👑 ' + (cleared ? 'たおした' : locked ? 'れんしゅう中' : 'ボス'))),
         hint ? h('div.tiny.muted', { style: { marginTop: '6px' } }, hint) : null),
-      nextL ? h('button.btn.primary.big', { on: { click: () => go(Engine.startLesson(p, st.id, next)) } }, nextL.focus === 'study' ? '📖 ' + nextL.label + '（カードを みるだけ）' : retry ? '🔁 ' + nextL.label + ' を もういちど（★★を めざせ！）' : '⚔️ ' + nextL.label + ' を たたかう')
+      nextL ? h('button.btn.primary.big', { on: { click: () => go(Engine.startLesson(p, st.id, next)) } }, nextL.focus === 'study' ? '📖 ' + nextL.label + '（カードを みるだけ）' : retry ? '🔁 おぼえてから ' + nextL.label + ' を もういちど（★★を めざせ！）' : '⚔️ ' + nextL.label + ' を たたかう')
         : (cleared ? h('button.btn.good.big', { on: { click: () => go(Engine.startPractice(p, st.id)) } }, '💪 れんしゅう バトル')
           : locked ? h('button.btn.good.big', { on: { click: () => go(Engine.startPractice(p, st.id)) } }, '💪 れんしゅうして ボスに そなえる')
             : h('button.btn.gold.big', { on: { click: () => go(Engine.startBoss(p, st.id)) } }, '👑 ボス「' + st.boss[0] + '」に ちょうせん！')),

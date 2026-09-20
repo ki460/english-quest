@@ -38,7 +38,9 @@
       h('div.st', h('div.k', '学習時間（合計）'), h('div.v', mins + '分')), h('div.st', h('div.k', '正答率'), h('div.v', acc + '%')),
       h('div.st', h('div.k', '出会った単語'), h('div.v', Engine.seenCount(p))), h('div.st', h('div.k', '覚えた単語'), h('div.v', Engine.learnedCount(p))),
       h('div.st', h('div.k', '連続日数 / 最高'), h('div.v', p.streak.count + ' / ' + (p.streak.best || 0))), h('div.st', h('div.k', 'バトル回数'), h('div.v', st.battles)),
-      h('div.st', h('div.k', '発声練習'), h('div.v', st.speak)), h('div.st', h('div.k', '旅で通じた'), h('div.v', p.travel.tsuujita))));
+      h('div.st', h('div.k', '発声練習'), h('div.v', st.speak)), h('div.st', h('div.k', '旅で通じた'), h('div.v', p.travel.tsuujita)),
+      h('div.st', h('div.k', '早押しミス'), h('div.v', st.rush || 0))));
+    sc.appendChild(h('p.tiny.muted', '早押しミス = 問題が出て 1.2 秒以内の誤答（読まずに押している目安）。1バトルで2回出ると、残りの単語はカードを見てから答える形に切り替わり、間違えた単語はその場でカードを見て ⭕ を押してから先に進みます'));
     // 14-day XP chart (single series, direct labels on the bars that matter)
     const days = []; let max = 1;
     for (let i = 13; i >= 0; i--) { const d = U.today(-i); const v = st.days[d] || 0; max = Math.max(max, v); days.push({ d, v, today: i === 0 }); }
@@ -54,7 +56,7 @@
     const tn = { choice: '選択問題', pic4: '絵を選ぶ', spell: 'つづり', build: '並べかえ', speak: '発声', trace: 'なぞり書き', intro: '新出', abcIntro: '文字の紹介' };
     if (types.length) sc.appendChild(h('div.card', h('h3', '問題タイプ別の回答数'), h('table', { style: { width: '100%', fontSize: '.9rem', marginTop: '6px' } }, types.map(t => h('tr', h('td', tn[t[0]] || t[0]), h('td.num', { style: { textAlign: 'right' } }, t[1]))))));
     // log
-    sc.appendChild(h('div.card', h('h3', '最近の記録'), p.log.length ? p.log.slice(0, 15).map(l => h('div.row.between.small', { style: { padding: '4px 0', borderTop: '1px solid var(--line)' } }, h('span', new Date(l.t).toLocaleString('ja-JP', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) + ' ' + ({ lesson: 'レッスン', boss: 'ボス', test: 'テスト', review: '復習', travel: '旅', practice: '練習' })[l.kind] + '「' + l.title + '」'), h('span.num', l.acc + '% / +' + l.xp + 'XP'))) : h('p.muted', 'まだ記録がありません')));
+    sc.appendChild(h('div.card', h('h3', '最近の記録'), p.log.length ? p.log.slice(0, 15).map(l => h('div.row.between.small', { style: { padding: '4px 0', borderTop: '1px solid var(--line)' } }, h('span', new Date(l.t).toLocaleString('ja-JP', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) + ' ' + ({ lesson: 'レッスン', boss: 'ボス', test: 'テスト', review: '復習', travel: '旅', practice: '練習' })[l.kind] + '「' + l.title + '」'), h('span.num', l.acc + '% / +' + l.xp + 'XP' + (l.rush ? ' ⚡' + l.rush : '')))) : h('p.muted', 'まだ記録がありません')));
   }
 
   function renderSettings(sc, p) {
