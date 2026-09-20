@@ -693,9 +693,40 @@
   // Stage clears, lesson stars and the boss test of one world are forgotten; every word's memory, XP, coins and buddies stay.
   E.resetWorld = function (p, key) {
     const w = C().world(key);
+    // keep what is being dropped, so the last reset can be undone from the parent menu (a tap on the wrong world happens)
+    const snap = { key, at: Date.now(), stages: {}, lessons: {}, words: {}, test: p.tests[key] || null };
+    w.stages.forEach(st => { if (p.stages[st.id]) snap.stages[st.id] = p.stages[st.id]; st.lessons.forEach(l => { if (p.lessons[l.id]) snap.lessons[l.id] = p.lessons[l.id]; }); });
+    // the world's word memory goes too: words "met" by tapping through would otherwise stay as zombies in the review
+    (C().levelWords[key] || []).forEach(k => { if (p.words[k]) { snap.words[k] = p.words[k]; delete p.words[k]; } });
+    p.undo = snap;
     w.stages.forEach(st => { delete p.stages[st.id]; st.lessons.forEach(l => { delete p.lessons[l.id]; }); });
     delete p.tests[key];
-    if (C().worldIndex(key) < C().worldIndex(p.startLevel)) p.startLevel = key;
+    Store.save();
+  };
+  E.worldTouched = (p, key) => E.worldProgress(p, C().world(key)).done > 0 || !!(p.tests[key] && p.tests[key].tries) || (C().levelWords[key] || []).some(k => p.words[k] && p.words[k].s > 0);
+  E.undoReset = function (p) {
+    const u = p.undo;
+    if (!u) return null;
+    Object.keys(u.stages).forEach(id => { p.stages[id] = u.stages[id]; });
+    Object.keys(u.lessons).forEach(id => { p.lessons[id] = u.lessons[id]; });
+    Object.keys(u.words || {}).forEach(k => { p.words[k] = u.words[k]; });
+    if (u.test) p.tests[u.key] = u.test;
+    delete p.undo;
+    Store.save();
+    return u.key;
+  };
+  // Mark a whole world cleared (every stage boss beaten, test passed): for a child who already knows it,
+  // or after a reset by mistake. The test score comes from the log when the pass is still in it.
+  E.clearWorld = function (p, key) {
+    const w = C().world(key);
+    w.stages.forEach(st => {
+      const S = p.stages[st.id] || (p.stages[st.id] = { boss: false, done: 0 });
+      S.boss = true; S.done = st.lessons.length; delete S.lock;
+      st.lessons.forEach(l => { const L = p.lessons[l.id] || (p.lessons[l.id] = { n: 0, s: 0 }); L.n = Math.max(L.n, 1); L.s = Math.max(L.s, CLEAR_STARS); });
+    });
+    const fromLog = (p.log || []).find(l => l.kind === 'test' && l.title === w.test && l.acc >= 70);
+    const T = p.tests[key] || (p.tests[key] = { passed: false, best: 0, tries: 0, date: '' });
+    T.passed = true; T.tries = Math.max(T.tries, 1); T.best = Math.max(T.best, fromLog ? fromLog.acc : 70); T.date = T.date || (fromLog ? U.ymd(new Date(fromLog.t)) : U.today());
     Store.save();
   };
 
