@@ -154,6 +154,11 @@ p { margin: 0; }
 .dots { display: flex; gap: 6px; justify-content: center; }
 .dots i { width: 12px; height: 12px; border-radius: 50%; background: var(--surface-3); display: inline-block; }
 .dots i.on { background: var(--good); } .dots i.boss { border-radius: 4px; background: var(--gold-soft); width: 16px; } .dots i.boss.on { background: var(--gold); }
+.dots i.half { background: linear-gradient(90deg, var(--good) 50%, var(--surface-3) 50%); }   /* played, not yet ★★ */
+.lchips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.lchip { font-size: .8rem; font-weight: 800; padding: 3px 9px; border-radius: 999px; background: var(--surface-3); color: var(--ink-2); font-family: var(--font-en); }
+.lchip.half { background: var(--gold-soft); color: var(--ink); } .lchip.on { background: var(--good-soft); color: var(--good); }
+.lchip.bossc.on { background: var(--gold-soft); color: var(--gold-dark); }
 .wordchips { display: flex; flex-wrap: wrap; gap: 6px; }
 .wordchips span { background: var(--surface-2); border-radius: 999px; padding: 4px 10px; font-size: .9rem; }
 .wordchips span.known { background: var(--good-soft); }

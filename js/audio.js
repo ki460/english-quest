@@ -300,12 +300,16 @@
 
   A.ttsAvailable = () => !!synth;
   A.voiceName = () => chosen ? chosen.name : '';
+  // the device lists its voices and none of them is English: English is then never spoken (a Japanese voice reading
+  // "six" as シックス would teach the wrong sound), and the home screen says so
+  A.noEnglishVoice = () => !!synth && voices.length > 0 && !chosen;
   A.isSpeaking = () => speaking > 0 || busy();
   A.speak = function (text, opt) {
     opt = opt || {};
     return new Promise((resolve) => {
       if (!synth || !text) return resolve(false);
       if (!voices.length) loadVoices();
+      if (voices.length && !chosen && (opt.lang || 'en-US').indexOf('en') === 0) return resolve(false);   // no English voice: stay silent
       const wasBusy = busy(), my = ++speakSeq;
       if (wasBusy) { try { synth.cancel(); } catch (e) { /* ignore */ } }
       const u = new SpeechSynthesisUtterance(String(text));

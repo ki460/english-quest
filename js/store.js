@@ -20,7 +20,7 @@
     catch (e) { S.memoryOnly = true; }
   };
 
-  S.defaultSettings = () => ({ dailyGoal: 30, ttsRate: 0.9, sfx: true, volume: 1, music: false, speech: true, pin: '', hintJa: true });
+  S.defaultSettings = () => ({ dailyGoal: 30, ttsRate: 0.9, sfx: true, volume: 1, music: false, speech: true, pin: '', hintJa: true, mastery: true, answerMode: 'ja' });
 
   S.newProfile = function (name, avatar, startLevel) {
     return {

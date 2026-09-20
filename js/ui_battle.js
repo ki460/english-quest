@@ -131,6 +131,7 @@
         if (!correct && correctText) body.appendChild(h('b', '🔊 こたえ：' + correctText));
         if (ex.reveal && correct) body.appendChild(h('b.en', ex.reveal));
         if (ex.ja && (ex.type === 'pic4' || ex.type === 'spell' || (ex.prompt && ex.prompt.listen))) body.appendChild(h('div', ex.ja));
+        if (ex.after) body.appendChild(h('div', ex.after));
         if (ex.explain) body.appendChild(h('div.small', ex.explain));
         if (details) body.appendChild(h('div.small', details));
         box.appendChild(h('div.fb-title', title || (correct ? U.pick(['せいかい！', 'やったね！', 'いいね！', 'すごい！']) : U.pick(['だいじょうぶ！', 'つぎは できる！']))));
@@ -194,7 +195,7 @@
           const fb = feedback(true, ex, details, praise || null);
           // auto-advance: long enough to read the card, extended while the voice is still talking, cancelled by a touch.
           // Cards with an explanation never auto-advance: the child reads at their own pace and taps つぎへ.
-          const readLen = ((ex.reveal || '') + (ex.ja || '') + (details || '')).length;
+          const readLen = ((ex.reveal || '') + (ex.ja || '') + (ex.after || '') + (details || '')).length;
           const base = 900 + readLen * 60;
           let wait = spoken ? Math.max(base, 1720 + spoken.length * 55) : Math.max(1500, base);
           if (res.killed && res.newMonster) wait = Math.max(wait, 1900);
@@ -405,7 +406,9 @@
       const na = Engine.nextAction(p);
       const win = r.passed, quick = U.reducedMotion();
       const big = s.kind === 'test' || s.kind === 'boss';
-      const kindLabel = { lesson: 'レッスン クリア！', boss: win ? 'ボス げきは！' : 'ボスは つよかった…', test: win ? 'ごうかく！' : 'あと すこし！', review: 'ゾンビ たいじ かんりょう！', travel: 'たびの れんしゅう クリア！', practice: 'れんしゅう クリア！' }[s.kind];
+      const partial = s.kind === 'lesson' && r.cleared === false;          // monster beaten, but under ★★: the lesson replays
+      const bossLocked = s.kind === 'boss' && !win && Engine.bossLocked(p, Content.stage(s.stageId));
+      const kindLabel = { lesson: partial ? 'あと すこし！' : 'レッスン クリア！', boss: win ? 'ボス げきは！' : 'ボスは つよかった…', test: win ? 'ごうかく！' : 'あと すこし！', review: 'ゾンビ たいじ かんりょう！', travel: 'たびの れんしゅう クリア！', practice: 'れんしゅう クリア！' }[s.kind];
 
       // --- a timeline of reveals; a tap anywhere (not on a button) jumps to the end ---
       const steps = [], timers = []; let skipped = false, tEnd = 0;
@@ -432,7 +435,7 @@
       const sting = () => { if (win) { App.sfx(big ? 'fanfare' : 'win'); App.confetti(big ? 200 : 90); } else App.sfx('lose'); };
 
       const starsEl = s.kind !== 'test' && win && s.kind !== 'boss' ? h('div.stars-big', [1, 2, 3].map(i => h('span', '★'))) : null;
-      sc.appendChild(rv(h('div.result-hero', h('div.mon' + (win ? '.dead' : ''), s.monster.emoji), rv(h('div.big', win ? (s.kind === 'test' ? 'PASS!' : 'WIN!') : 'RETRY'), 250), h('h1', kindLabel),
+      sc.appendChild(rv(h('div.result-hero', h('div.mon' + (win ? '.dead' : ''), s.monster.emoji), rv(h('div.big', win ? (s.kind === 'test' ? 'PASS!' : partial ? 'GOOD!' : 'WIN!') : 'RETRY'), 250), h('h1', kindLabel),
         starsEl, h('p.muted', 'せいかい ' + r.correct + ' / ' + r.total + '（' + Math.round(r.acc * 100) + '%）' + (r.maxCombo >= 3 ? ' ・ さいこう ' + r.maxCombo + 'コンボ' : ''))), 0));
       if (starsEl) [1, 2, 3].forEach(i => { if (i <= r.stars) at(700 + (i - 1) * 250, (silent) => { starsEl.children[i - 1].classList.add('on'); if (!silent) App.sfx('star', i); }); });
 
@@ -441,7 +444,12 @@
         sc.appendChild(rv(h('div.certificate', h('div.t', 'CERTIFICATE'), h('div.g', '🏆 ' + w.test.replace(' ボステスト', '') + ' ごうかく'), h('div.n', p.name), h('p.muted', U.today().replace(/-/g, '/') + ' ・ ' + Math.round(r.acc * 100) + '点'), r.first && Content.worlds[Content.worldIndex(s.world) + 1] ? h('p', { style: { marginTop: '8px' } }, '🔓 「' + Content.worlds[Content.worldIndex(s.world) + 1].name + '」が ひらいた！') : null), 900));
       }
       if (s.kind === 'test' && !win) sc.appendChild(h('div.card', h('p', '70点で ごうかく。まちがえた ところを ふくしゅうして、また ちょうせんしよう！'), h('p.small.muted', 'まちがえた もんだい： ' + s.results.filter(x => !x.correct).map(x => x.ex.prompt && (x.ex.prompt.text || x.ex.reveal) ? (x.ex.prompt.text || x.ex.reveal) : x.ex.target || '').filter(Boolean).slice(0, 6).join(' / '))));
-      if (s.kind === 'boss' && !win) sc.appendChild(h('div.card', 'ボスは 70%いじょう せいかいで たおせるよ。ステージの たんごを れんしゅうして もういちど！'));
+      if (partial) {
+        const need = Math.ceil(0.8 * r.total) - r.correct;
+        sc.appendChild(h('div.card', h('p', need <= 3 ? h('b', 'あと ' + need + 'もん せいかいで ★★ だった！') : null, need <= 3 ? h('br') : null, '★★（80%いじょう）で つぎの レッスンが ひらくよ。' + (s.gentle ? 'カードを よく みて、もういちど！' : 'まちがえた たんごは カードで もういちど おぼえてから、さいちょうせん！'))));
+      }
+      if (s.kind === 'boss' && !win) sc.appendChild(h('div.card', 'ボスは ' + Math.round(100 * Engine.bossPass(p)) + '%いじょう せいかいで たおせるよ。' + (bossLocked ? 'ステージの れんしゅうで 70%いじょう とると、もういちど ちょうせんできる！' : 'ステージの たんごを れんしゅうして もういちど！')));
+      if (s.kind === 'practice' && r.wasLocked) sc.appendChild(h('div.card', r.unlocked ? '👑 ボスに もういちど ちょうせんできるように なった！' : 'あと すこし！ 70%いじょうで ボスに ちょうせんできるよ。もういちど れんしゅうしよう！'));
 
       // rewards: XP + coins count up, then the extra rows pop in one by one
       const xpEl = h('span.v.num', '0'), coinEl = h('span.v.num', '0');
@@ -533,9 +541,13 @@
         popups(fn);
       };
       const btns = h('div.col');
-      if (!win && s.kind === 'boss') btns.appendChild(h('button.btn.primary.big', { on: { click: () => leave(() => App.go('battle', { session: Engine.startBoss(p, s.stageId) })) } }, '👑 もういちど ちょうせん'));
+      const nudge = na.kind === 'lesson' && s.kind !== 'review' ? Engine.suggestReview(p) : 0;
+      if (partial) btns.appendChild(h('button.btn.primary.big', { on: { click: () => leave(() => App.go('battle', { session: Engine.startLesson(p, s.stageId, s.lessonIdx) })) } }, '🔁 もういちど（★★を めざせ！）'));
+      else if (bossLocked) btns.appendChild(h('button.btn.primary.big', { on: { click: () => leave(() => App.go('battle', { session: Engine.startPractice(p, s.stageId) })) } }, '💪 れんしゅうして そなえる'));
+      else if (!win && s.kind === 'boss') btns.appendChild(h('button.btn.primary.big', { on: { click: () => leave(() => App.go('battle', { session: Engine.startBoss(p, s.stageId) })) } }, '👑 もういちど ちょうせん'));
       else if (!win && s.kind === 'test') btns.appendChild(h('button.btn.primary.big', { on: { click: () => leave(() => App.go('battle', { session: Engine.startTest(p, s.world) })) } }, '🧙 もういちど ちょうせん'));
-      else if (na.kind !== 'done') btns.appendChild(h('button.btn.primary.big', { on: { click: () => leave(() => App.startAction(na)) } }, na.kind === 'lesson' ? '⚔️ つぎの バトルへ' : na.kind === 'boss' ? '👑 ボスに ちょうせん' : '🧙 テストに ちょうせん'));
+      else if (nudge) btns.appendChild(h('button.btn.primary.big', { on: { click: () => leave(() => { const rs = Engine.startReview(p); if (rs) App.go('battle', { session: rs }); else App.go('home'); }) } }, '🧟 ゾンビを たおしてから すすもう！（' + nudge + 'たい）'));
+      else if (na.kind !== 'done') btns.appendChild(h('button.btn.primary.big', { on: { click: () => leave(() => App.startAction(na)) } }, na.kind === 'lesson' ? '⚔️ つぎの バトルへ' : na.kind === 'boss' ? '👑 ボスに ちょうせん' : na.kind === 'practice' ? (s.kind === 'practice' ? '💪 もういちど れんしゅう' : '💪 れんしゅうして ボスに そなえる') : '🧙 テストに ちょうせん'));
       btns.appendChild(h('div.row', h('button.btn', { style: { flex: 1 }, on: { click: () => leave(() => App.go('map', s.world ? { world: s.world } : {})) } }, '🗺️ マップ'), h('button.btn', { style: { flex: 1 }, on: { click: () => leave(() => App.go('home')) } }, '🏠 ホーム')));
       sc.appendChild(rv(btns, win ? 1200 : 400));
 

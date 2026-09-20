@@ -83,16 +83,24 @@
     };
     const testCard = h('div.field', h('label', '🔊 音のテスト'), h('div.row.wrap', h('button.btn.sm.blue', { on: { click: test } }, '効果音を鳴らす'), h('button.btn.sm.ghost', { on: { click: () => App.say('Great job! That is correct!') } }, '読み上げを鳴らす')), h('div.tiny.muted', '2つとも押して比べてください。読み上げだけ聞こえる → iPad のサイレントモード（コントロールセンターの 🔔）を確認。どちらも聞こえない → 音量を確認。更新直後は「次に開いたとき」に新しい版になります（いまの版: ' + (window.EQ_BUILD || '?') + '）'), out);
     const pin = h('input', { id: 'pinInput', type: 'tel', inputmode: 'numeric', maxLength: 4, placeholder: '4けた（空なら計算問題）', value: s.pin || '' });
+    const modeSeg = h('div.seg', [['ja', 'にほんごで答える'], ['pic', '絵で答える']].map(m => h('button', { class: (s.answerMode || 'ja') === m[0] ? 'on' : '', on: { click: () => { s.answerMode = m[0]; App.save(); App.refresh(); } } }, m[1])));
+    sc.appendChild(h('div.card.col',
+      h('h3', '進み方'),
+      toggle('mastery', 'マスターモード（★★でクリア）', 'レッスンは初回正解 80% 以上（★★）で次のレッスンが開き、届かなければ同じレッスンをもう一度（間違えた単語はカードから復習）。ステージボスは 80% で撃破、負けたら練習バトルで 70% 以上とってから再挑戦。ゾンビ（復習）が 8 たい以上たまるとホームの大きなボタンは復習を先にすすめます。オフ：1回遊べば次へ、ボスは 70%'),
+      h('div.field', h('label', '単語の答え方'), modeSeg, h('div.tiny.muted', 'にほんご：英語の単語→日本語の意味を選ぶ／日本語→英語を選ぶ（ひらがな・かんじが読める子向け。まぐれ当たりが減ります）。絵：絵文字で答える（まだ読めない子向け）。ABC とフォニックスはどちらでも絵、復習は覚え具合に合わせて易しい形から出ます'))));
     sc.appendChild(h('div.card.col',
       h('div.field', h('label', '1日の目標 XP'), goalSeg, h('div.tiny.muted', '小さな達成感を毎日：15 XP は約1レッスン、30 XP で約2レッスン分です')),
-      h('div.field', h('label', '読み上げの速さ'), rateSeg, h('div.tiny.muted', '使用中の音声: ' + (Audio2.voiceName() || '（この端末には英語音声がありません）'))),
+      h('div.field', h('label', '読み上げの速さ'), rateSeg, h('div.tiny.muted', '使用中の音声: ' + (Audio2.voiceName() || '（この端末には英語音声がありません → 英語は読み上げません。iPad は 設定 → アクセシビリティ → 読み上げコンテンツ → 声 → 英語 で追加、Windows は 設定 → 時刻と言語 → 音声認識 で英語の音声を追加できます）') + (Audio2.voiceName() && !/premium|enhanced|natural|neural/i.test(Audio2.voiceName()) ? '。iPad の 設定 → アクセシビリティ → 読み上げコンテンツ → 声 → 英語 で「Samantha（拡張）」などをダウンロードすると、より自然な声に自動で切り替わります' : ''))),
       toggle('speech', 'マイクで発音チェック', Audio2.srAvailable() ? 'オフにすると「聞いて真似する」練習になります' : 'この環境では音声認識が使えないため、聞いて真似する練習になります'),
       toggle('sfx', '効果音', '正解・攻撃・ごほうびの音。ホーム画面右上の 🔊 ボタンでも切り替えられます'),
       h('div.field', h('label', '音の大きさ（効果音・読み上げ）'), h('div.row.wrap', volSeg, quiet), h('div.tiny.muted', '読み上げの音量は端末によっては変わらないことがあります（その場合は iPad 本体の音量で）')),
       toggle('music', 'バトルの音楽（BGM）', 'バトル中だけ流れる短いループ。読み上げ中は自動で小さくなり、マイク使用中は止まります'),
       testCard,
       h('div.field', h('label', '保護者メニューの PIN'), h('div.row', pin, h('button.btn.sm.blue', { on: { click: () => { const v = pin.value.trim(); if (v && !/^\d{4}$/.test(v)) { App.toast('4けたの数字にしてください'); return; } s.pin = v; App.save(); App.toast(v ? 'PINを設定しました' : 'PINを解除しました（計算問題になります）', 'good'); } } }, '保存')))));
-    sc.appendChild(h('div.card.col', h('h3', 'このプロフィール'), h('div.field', h('label', '開始レベル（これより前のワールドは自由に遊べます）'), h('select', { id: 'startSel', on: { change: (e) => { p.startLevel = e.target.value; App.save(); App.toast('変更しました', 'good'); } } }, Content.worlds.map(w => h('option', { value: w.key, selected: w.key === p.startLevel }, w.emoji + ' ' + w.sub))))));
+    sc.appendChild(h('div.card.col', h('h3', 'このプロフィール'), h('div.field', h('label', '開始レベル（これより前のワールドは自由に遊べます）'), h('select', { id: 'startSel', on: { change: (e) => { p.startLevel = e.target.value; App.save(); App.toast('変更しました', 'good'); } } }, Content.worlds.map(w => h('option', { value: w.key, selected: w.key === p.startLevel }, w.emoji + ' ' + w.sub)))),
+      h('div.field', h('label', 'ワールドをやり直す（まぐれで先に進んでしまったとき）'),
+        h('div.row.wrap', Content.worlds.filter(w => Engine.worldProgress(p, w).done > 0 || (p.tests[w.key] && p.tests[w.key].tries)).map(w => h('button.btn.sm.ghost', { on: { click: () => App.modal({ emoji: '↩️', title: w.emoji + ' ' + w.sub + ' をやり直す？', body: 'このワールドのステージクリア・レッスンの星・ボステストの合格を取り消し、最初のレッスンからやり直します。単語の記憶（ゾンビ）・XP・コイン・なかま・バッジはそのまま残ります。', buttons: [{ label: 'やり直す', cls: 'primary', onClick: () => { Engine.resetWorld(p, w.key); App.toast(w.sub + ' を最初からにしました', 'good'); App.refresh(); } }, { label: 'やめる', cls: 'ghost' }] }) } }, w.emoji + ' ' + w.sub))),
+        h('div.tiny.muted', '進み具合だけ戻します。ボステストの合格も取り消すので、その次のワールドはロックに戻ります（そちらの記録は残るので、再合格すれば元通り）'))));
   }
 
   function renderData(sc, p) {
@@ -111,7 +119,7 @@
       h('h3', '📱 iPad で使う（ホーム画面に追加）'),
       h('ol', { style: { paddingLeft: '1.2em', margin: 0, lineHeight: 1.7 } }, li('iPad の Safari でこのページを開く'), li('共有ボタン（□↑）→「ホーム画面に追加」'), li('ホーム画面のアイコンから起動すると全画面のアプリとして使えます'), li('初回にマイクの許可を聞かれたら「許可」（発音チェックに使います）'), li('効果音を鳴らすため、アプリを開いている間は他のアプリの音楽が止まります。サイレントモード（🔔）でも効果音が鳴るようにしてあります')),
       h('h3', '🎮 遊び方のしくみ'),
-      h('ul', { style: { paddingLeft: '1.2em', margin: 0, lineHeight: 1.7 } }, li('マップのステージ = 20単語くらいのテーマ。4〜5レッスン + ボスで1ステージ'), li('正解すると攻撃、連続正解でコンボ（ダメージ↑・5コンボでXP↑）。まちがえても失格にはならず、その問題があとで出直します'), li('覚えた単語は 1日・3日・7日・14日・30日後に「ゾンビ」として戻ってきます（忘却曲線に合わせた復習）'), li('毎日3つのクエスト。全部達成で宝箱＋たまご。たまごは 3〜5回のバトルで「なかま」に孵化（最初のたまごと金のたまごは3回）'), li('各級の最後は本物の英検の形式（語彙文法・会話・並べかえ・リスニング・読解）を模したボステスト。70点で合格→次の級が開放'), li('「たび」は来年の海外旅行のためのフレーズ集。現地で通じたら「つうじた！」で大きなごほうび')),
+      h('ul', { style: { paddingLeft: '1.2em', margin: 0, lineHeight: 1.7 } }, li('マップのステージ = 20単語くらいのテーマ。4〜5レッスン + ボスで1ステージ。レッスンは ★★（初回正解 80%）でクリア、届かなければ同じレッスンをもう一度。ボスは 80% で撃破、負けたら練習（70%）→再挑戦（設定「マスターモード」）'), li('正解すると攻撃、連続正解でコンボ（ダメージ↑・5コンボでXP↑）。まちがえても失格にはならず、その問題があとで出直します'), li('覚えた単語は 1日・3日・7日・14日・30日後に「ゾンビ」として戻ってきます（忘却曲線に合わせた復習）。復習にはよく覚えている単語も数問まざり、間違えた単語はその日のうちにまた出ます'), li('毎日3つのクエスト。全部達成で宝箱＋たまご。たまごは 3〜5回のバトルで「なかま」に孵化（最初のたまごと金のたまごは3回）'), li('各級の最後は本物の英検の形式（語彙文法・会話・並べかえ・リスニング・読解）を模したボステスト。70点で合格→次の級が開放'), li('「たび」は来年の海外旅行のためのフレーズ集。現地で通じたら「つうじた！」で大きなごほうび')),
       h('h3', '📚 収録内容'),
       h('p.small.muted', 'アルファベット26文字 ・ フォニックス ' + Content.countWords('ph') + '語 ・ 英検5級 ' + Content.countWords('g5') + '語 ・ 4級 ' + Content.countWords('g4') + '語 ・ 3級 ' + Content.countWords('g3') + '語 ・ 準2級 ' + Content.countWords('p2') + '語 ・ 2級 ' + Content.countWords('g2') + '語 ・ 旅行フレーズ ' + Content.countWords('travel') + '（単語リストは各級の目安で、公式の出題範囲そのものではありません）')));
   }

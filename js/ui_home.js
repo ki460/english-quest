@@ -29,12 +29,20 @@
       const seg = h('div.col');
       const drawStart = () => { U.clear(seg); starts.forEach(s => seg.appendChild(h('button.btn' + (s[0] === start ? '.blue' : ''), { on: { click: () => { start = s[0]; App.sfx('tap'); drawStart(); } } }, s[1]))); };
       drawStart();
+      // how vocabulary questions answer: Japanese text for a child who reads kana, pictures for one who does not yet
+      let mode = 'ja';
+      const modes = [['ja', '🇯🇵 にほんごで こたえる（ひらがなが よめる）'], ['pic', '🖼️ えで こたえる（まだ よめない）']];
+      const modeSeg = h('div.col');
+      const drawMode = () => { U.clear(modeSeg); modes.forEach(m => modeSeg.appendChild(h('button.btn' + (m[0] === mode ? '.blue' : ''), { on: { click: () => { mode = m[0]; App.sfx('tap'); drawMode(); } } }, m[1]))); };
+      drawMode();
       sc.appendChild(h('h1', 'ぼうけんしゃ とうろく'));
       sc.appendChild(h('div.card.col', h('div.field', h('label', 'なまえ'), name), h('div.field', h('label', 'アバターを えらぼう'), grid)));
       sc.appendChild(h('div.card.col', h('div.field', h('label', 'どこから はじめる？（あとで まえの ステージも あそべるよ）'), seg)));
+      sc.appendChild(h('div.card.col', h('div.field', h('label', 'たんごの こたえかた（おうちのひとメニューで あとから かえられるよ）'), modeSeg)));
       sc.appendChild(h('div.row', h('button.btn.ghost', { on: { click: () => App.go('profiles') } }, 'もどる'), h('button.btn.primary', { style: { flex: 1 }, on: { click: () => {
         const n = name.value.trim(); if (!n) { name.focus(); App.toast('なまえを いれてね'); return; }
         const p = Store.newProfile(n, avatar, start);
+        p.settings.answerMode = mode;
         p.eggs.push({ id: U.uid(), kind: 'normal', p: 0, need: 3 });   // a starter egg: the first buddy hatches in session one
         Store.addProfile(p); App.p = p; App.applySettings(p);
         Engine.ensureDaily(p); App.save(); App.sfx('win'); App.confetti(); App.go('home');
@@ -73,9 +81,19 @@
         h('div.bubble', line, h('div.tiny.muted', buddy ? [h('span.en', buddy.name), ' / ' + buddy.ja, eggChip ? ' ' : null, eggChip] : (eggChip ? ['たまごが そだっているよ ', eggChip] : 'たまごを かえすと なかまが できるよ'))),
         ring));
 
-      // continue button
-      const label = na.kind === 'lesson' ? '⚔️ ' + na.stage.name + ' ' + (na.lesson + 1) + ' へ すすむ' : na.kind === 'boss' ? '👑 ボス「' + na.stage.boss[0] + '」に ちょうせん' : na.kind === 'test' ? '🧙 ' + na.world.test + ' に ちょうせん' : '🏆 ぜんぶ クリア！ れんしゅうしよう';
-      sc.appendChild(h('button.btn.primary.big.pulse', { on: { click: () => { App.sfx('tap'); App.startAction(na); } } }, label));
+      // no English voice on this device: say so before anything else (English is not spoken at all in that case)
+      if (Audio2.noEnglishVoice && Audio2.noEnglishVoice()) {
+        sc.appendChild(h('div.card', { style: { borderColor: 'var(--bad)', background: 'var(--bad-soft)' } }, h('div.bold', '⚠️ この たんまつには えいごの こえが ありません'), h('div.small', 'えいごを まちがった おとで よまないように、よみあげは おやすみしています。おうちのひとメニュー（⚙️）→ 設定 に なおしかたが あります')));
+      }
+      // continue button. A lesson that did not reach ★★ is replayed; when zombies pile up before new words, review first.
+      const retryLesson = na.kind === 'lesson' && !!(p.lessons[na.stage.lessons[na.lesson].id] && p.lessons[na.stage.lessons[na.lesson].id].n > 0);
+      const nudge = na.kind === 'lesson' && !retryLesson ? Engine.suggestReview(p) : 0;
+      const label = nudge ? '🧟 ゾンビを たおしてから すすもう！（' + nudge + 'たい）'
+        : na.kind === 'lesson' ? (retryLesson ? '🔁 ' + na.stage.name + ' ' + (na.lesson + 1) + ' を もういちど' : '⚔️ ' + na.stage.name + ' ' + (na.lesson + 1) + ' へ すすむ')
+        : na.kind === 'boss' ? '👑 ボス「' + na.stage.boss[0] + '」に ちょうせん'
+        : na.kind === 'practice' ? '💪 ' + na.stage.name + ' を れんしゅうして ボスに そなえる'
+        : na.kind === 'test' ? '🧙 ' + na.world.test + ' に ちょうせん' : '🏆 ぜんぶ クリア！ れんしゅうしよう';
+      sc.appendChild(h('button.btn.primary.big.pulse', { on: { click: () => { App.sfx('tap'); if (nudge) { const s = Engine.startReview(p); if (s) { App.go('battle', { session: s }); return; } } App.startAction(na); } } }, label));
 
       // streak strip
       const days = [];
@@ -122,6 +140,7 @@
     const p = App.p;
     if (na.kind === 'lesson') App.go('battle', { session: Engine.startLesson(p, na.stage.id, na.lesson) });
     else if (na.kind === 'boss') App.go('battle', { session: Engine.startBoss(p, na.stage.id) });
+    else if (na.kind === 'practice') App.go('battle', { session: Engine.startPractice(p, na.stage.id) });
     else if (na.kind === 'test') App.go('testIntro', { world: na.world.key });
     else App.go('map');
   };

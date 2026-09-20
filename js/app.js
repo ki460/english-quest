@@ -1,7 +1,7 @@
 /* app.js — boot */
 (function () {
   'use strict';
-  window.EQ_BUILD = '2026-09-19b';   // shown in the parent menu so a device test can be matched to a version
+  window.EQ_BUILD = '2026-09-20';   // shown in the parent menu so a device test can be matched to a version
   function boot() {
     Content.build();
     Store.load();
