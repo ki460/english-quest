@@ -14,7 +14,7 @@
         profiles.map(p => h('button.profile-card', { on: { click: () => { App.sfx('tap'); App.p = p; App.applySettings(p); Store.setCurrent(p.id); App.go('home'); } } },
           App.avatarEl(p), h('div', h('div.n', p.name), h('div.s', 'Lv.' + Engine.levelFor(p.xp) + ' ・ 🔥' + p.streak.count + 'にち ・ たんご ' + Engine.learnedCount(p))))),
         h('button.btn' + (profiles.length ? '' : '.primary.big'), { on: { click: () => App.go('newProfile') } }, profiles.length ? '＋ あたらしい ぼうけんしゃ' : 'ぼうけんを はじめる！')));
-      sc.appendChild(h('p.tiny.muted', 'iPadの Safari で ひらいて、共有 → ホーム画面に追加 すると アプリみたいに つかえるよ'));
+      sc.appendChild(h('p.tiny.muted', 'iPadの Safari で ひらいて、共有 → ホーム画面に追加 すると アプリみたいに つかえるよ ・ 版 ' + (window.EQ_BUILD || '?')));
     }
   };
 

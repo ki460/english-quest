@@ -1,7 +1,7 @@
 /* app.js — boot */
 (function () {
   'use strict';
-  window.EQ_BUILD = '2026-09-20';   // shown in the parent menu so a device test can be matched to a version
+  window.EQ_BUILD = '2026-09-20b';   // shown in the parent menu so a device test can be matched to a version
   function boot() {
     Content.build();
     Store.load();
@@ -22,8 +22,15 @@
     if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1')) {
       const reg = () => { try { navigator.serviceWorker.register('sw.js').catch(() => { /* offline support is optional */ }); } catch (e) { /* ignore */ } };
       if (document.readyState === 'complete') reg(); else window.addEventListener('load', reg);
-      // sw.js says so after it has downloaded a newer version in the background
-      navigator.serviceWorker.addEventListener('message', (e) => { if (e.data && e.data.type === 'eq-updated') App.toast('🆕 あたらしい バージョンが とどいたよ。つぎに ひらくと かわるよ'); });
+      // sw.js says so after it has downloaded a newer version in the background → the app reloads itself (App.updateArrived)
+      navigator.serviceWorker.addEventListener('message', (e) => {
+        const d = e.data || {};
+        if (d.type === 'eq-updated') App.updateArrived();
+        else if (d.type === 'eq-refreshed' && App._refreshWait) App._refreshWait(d);
+      });
+      // iOS rarely relaunches a home-screen app, it resumes it: coming back also looks for a new version (10 min apart)
+      let lastAsk = Date.now();
+      document.addEventListener('visibilitychange', () => { if (!document.hidden && Date.now() - lastAsk > 10 * 60 * 1000) { lastAsk = Date.now(); App.askRefresh(); } });
     }
     // keep the audio context warm when returning from background (iOS)
     window.addEventListener('focus', () => Audio2.kick());

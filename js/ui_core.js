@@ -46,8 +46,42 @@
     if (def.tab && App.p) r.appendChild(App.tabbar(def.tab));
     sc.scrollTop = 0;
     window.scrollTo(0, 0);
+    if (App.updateReady && !BUSY[name]) App.applyUpdate();
   };
   App.refresh = () => App.go(App.screen, App.params, { quiet: true });
+
+  // ---- updates ----
+  // sw.js refreshes the offline copy in the background and says when a newer version has arrived. A home-screen app has
+  // no reload button and iOS resumes rather than relaunches it, so the app reloads itself at the next quiet moment:
+  // never mid-battle, on the result ceremony or while a name is being typed (App.go retries when the screen changes).
+  const BUSY = { battle: true, result: true, newProfile: true };
+  App.updateReady = false;
+  App.updateArrived = function () { App.updateReady = true; if (!BUSY[App.screen]) App.applyUpdate(); };
+  App.applyUpdate = function () {
+    try { const t = +sessionStorage.getItem('eqReloadAt') || 0; if (Date.now() - t < 120000) return; sessionStorage.setItem('eqReloadAt', String(Date.now())); } catch (e) { /* ignore */ }
+    App.updateReady = false;
+    App.toast('🆕 あたらしい バージョンに きりかえるよ', 'gold');
+    setTimeout(() => location.reload(), 900);
+  };
+  // ask the worker to re-download the shell now (it answers eq-refreshed) and to look for a newer sw.js
+  App.askRefresh = function () {
+    const c = navigator.serviceWorker && navigator.serviceWorker.controller;
+    if (!c) return false;
+    try { c.postMessage({ type: 'eq-refresh' }); } catch (e) { return false; }
+    try { navigator.serviceWorker.getRegistration().then(r => r && r.update()).catch(() => { /* ignore */ }); } catch (e) { /* ignore */ }
+    return true;
+  };
+  // the build stamp of the copy a reload would load (through the worker: the cache; without one: the server)
+  App.latestBuild = () => fetch('js/app.js', { cache: 'no-store' }).then(r => r.text()).then(t => (/EQ_BUILD = '([^']+)'/.exec(t) || [])[1] || '').catch(() => '');
+  // parent menu: check now → { latest, current, newer }
+  App.checkUpdate = function (onResult) {
+    const finish = () => App.latestBuild().then(b => onResult({ latest: b, current: window.EQ_BUILD || '', newer: !!b && b !== window.EQ_BUILD }));
+    if (!App.askRefresh()) { finish(); return; }
+    let done = false;
+    const once = () => { if (done) return; done = true; App._refreshWait = null; finish(); };
+    App._refreshWait = once;
+    setTimeout(once, 12000);                       // an old worker without the message handler never answers
+  };
 
   App.avatarEl = function (p, big) {
     const hat = p.items && p.items.hat ? Content.hatById[p.items.hat] : null;

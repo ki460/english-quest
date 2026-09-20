@@ -21,7 +21,7 @@
     hud: true,
     render(sc, params) {
       const p = App.p, tab = params.tab || 'stats';
-      sc.appendChild(h('div.row', h('button.btn.sm.ghost', { on: { click: () => App.go('home') } }, '← ホーム'), h('h1', '👪 保護者メニュー')));
+      sc.appendChild(h('div.row', h('button.btn.sm.ghost', { on: { click: () => App.go('home') } }, '← ホーム'), h('h1', '👪 保護者メニュー'), h('span.tiny.muted.num', { style: { marginLeft: 'auto' } }, '版 ' + (window.EQ_BUILD || '?'))));
       sc.appendChild(h('div.seg', [['stats', '📊 記録'], ['settings', '⚙️ 設定'], ['data', '💾 データ'], ['help', '❓ 使い方']].map(t => h('button', { class: t[0] === tab ? 'on' : '', on: { click: () => App.go('parent', { tab: t[0] }) } }, t[1]))));
       if (tab === 'stats') renderStats(sc, p);
       else if (tab === 'settings') renderSettings(sc, p);
@@ -84,6 +84,18 @@
     const testCard = h('div.field', h('label', '🔊 音のテスト'), h('div.row.wrap', h('button.btn.sm.blue', { on: { click: test } }, '効果音を鳴らす'), h('button.btn.sm.ghost', { on: { click: () => App.say('Great job! That is correct!') } }, '読み上げを鳴らす')), h('div.tiny.muted', '2つとも押して比べてください。読み上げだけ聞こえる → iPad のサイレントモード（コントロールセンターの 🔔）を確認。どちらも聞こえない → 音量を確認。更新直後は「次に開いたとき」に新しい版になります（いまの版: ' + (window.EQ_BUILD || '?') + '）'), out);
     const pin = h('input', { id: 'pinInput', type: 'tel', inputmode: 'numeric', maxLength: 4, placeholder: '4けた（空なら計算問題）', value: s.pin || '' });
     const modeSeg = h('div.seg', [['ja', 'にほんごで答える'], ['pic', '絵で答える']].map(m => h('button', { class: (s.answerMode || 'ja') === m[0] ? 'on' : '', on: { click: () => { s.answerMode = m[0]; App.save(); App.refresh(); } } }, m[1])));
+    const updBtn = h('button.btn.sm.blue', { on: { click: (e) => {
+      const btn = e.currentTarget; btn.disabled = true; btn.textContent = '確認中…';
+      App.checkUpdate((d) => {
+        if (d.newer) { App.toast('🆕 新しい版（' + d.latest + '）に切り替えます', 'good'); setTimeout(() => location.reload(), 700); return; }
+        btn.disabled = false; btn.textContent = '🔄 最新版に更新';
+        App.toast(d.latest ? '✅ すでに最新版です（' + d.current + '）' : '確認できませんでした。電波を確認して、もう一度', d.latest ? 'good' : '');
+      });
+    } } }, '🔄 最新版に更新');
+    sc.appendChild(h('div.card.col',
+      h('h3', 'アプリ'),
+      h('div.row.wrap', h('span.small', 'いまの版: ' + (window.EQ_BUILD || '?')), updBtn),
+      h('div.tiny.muted', '新しい版が届くと、バトル中でなければ自動で切り替わります（一瞬読み込み直します）。すぐ確かめたいときはこのボタンで。ホーム画面のアプリは閉じても再読み込みされないことが多いので、このボタンか自動切り替えを使ってください')));
     sc.appendChild(h('div.card.col',
       h('h3', '進み方'),
       toggle('mastery', 'マスターモード（★★でクリア）', 'レッスンは初回正解 80% 以上（★★）で次のレッスンが開き、届かなければ同じレッスンをもう一度（間違えた単語はカードから復習）。ステージボスは 80% で撃破、負けたら練習バトルで 70% 以上とってから再挑戦。ゾンビ（復習）が 8 たい以上たまるとホームの大きなボタンは復習を先にすすめます。オフ：1回遊べば次へ、ボスは 70%'),

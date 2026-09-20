@@ -27,10 +27,10 @@ function store(key, res) {
 const sig = (res) => res.headers.get('etag') || res.headers.get('last-modified') || '';
 
 // Download the whole shell, then swap it into the cache in one go (keeps the files consistent with each other).
-// Tells open pages when something actually changed.
-function refreshShell() {
+// Tells open pages when something actually changed (they reload themselves at a quiet moment). Resolves to that flag.
+function refreshShell(force) {
   const now = Date.now();
-  if (now - lastRefresh < REFRESH_EVERY) return Promise.resolve();
+  if (!force && now - lastRefresh < REFRESH_EVERY) return Promise.resolve(false);
   lastRefresh = now;
   return Promise.all(SHELL.map(u => fetch(u, { cache: 'no-cache' }).then(r => (r && r.ok ? [u, r] : null)).catch(() => null)))
     .then(pairs => caches.open(VERSION).then(c => Promise.all(pairs.filter(Boolean).map(([u, r]) =>
@@ -39,14 +39,21 @@ function refreshShell() {
         return c.put(u, r).then(() => changed);
       })))))
     .then(flags => {
-      if (!flags.some(Boolean)) return;
-      return self.clients.matchAll({ type: 'window' }).then(cs => cs.forEach(c => c.postMessage({ type: 'eq-updated' })));
+      if (!flags.some(Boolean)) return false;
+      return self.clients.matchAll({ type: 'window' }).then(cs => { cs.forEach(c => c.postMessage({ type: 'eq-updated' })); return true; });
     })
-    .catch(() => { /* offline: keep what we have */ });
+    .catch(() => false);   // offline: keep what we have
 }
+// A page asks for a check right now (app resumed, parent menu button): bypass the throttle and answer.
+self.addEventListener('message', (e) => {
+  if (!e.data || e.data.type !== 'eq-refresh') return;
+  const reply = (changed) => { try { if (e.source) e.source.postMessage({ type: 'eq-refreshed', changed: !!changed }); } catch (err) { /* ignore */ } };
+  e.waitUntil(refreshShell(true).then(reply, () => reply(false)));
+});
 
 self.addEventListener('install', (e) => {
-  e.waitUntil(caches.open(VERSION).then(c => Promise.all(SHELL.map(u => c.add(u).catch(() => null)))).then(() => self.skipWaiting()));
+  // straight from the server, never the HTTP cache: a copy cached minutes before a deploy must not become the new shell
+  e.waitUntil(caches.open(VERSION).then(c => Promise.all(SHELL.map(u => fetch(u, { cache: 'no-cache' }).then(r => (r && r.ok ? c.put(u, r) : null)).catch(() => null)))).then(() => self.skipWaiting()));
 });
 self.addEventListener('activate', (e) => {
   e.waitUntil(caches.keys().then(keys => Promise.all(keys.filter(k => k !== VERSION).map(k => caches.delete(k)))).then(() => self.clients.claim()));
