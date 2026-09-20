@@ -108,7 +108,7 @@
         if (pr.text) {
           if (pr.text.indexOf('___') >= 0) { const parts = pr.text.split('___'); card.appendChild(h('div.sentence.en', parts[0], h('b', '____'), parts[1])); }
           else if (pr.bigText) card.appendChild(h('div.word.big.en', pr.text));
-          else if (/[a-zA-Z]/.test(pr.text) && pr.text.length < 18) card.appendChild(h('div.word.en', pr.text));
+          else if (/[a-zA-Z]/.test(pr.text) && pr.text.length < 18) card.appendChild(pr.hl ? App.hlWord('div.word.en', pr.text, pr.hl) : h('div.word.en', pr.text));
           else card.appendChild(h('div.sentence' + (/^[\x00-\x7F]+$/.test(pr.text) ? '.en' : ''), pr.text));
         }
         if (pr.tts) {
@@ -188,6 +188,11 @@
               });
             }
           }
+          if (ex.type === 'study' || ex.type === 'abcStudy') {       // ⭕: chime, attack, on to the next card — no verdict box
+            later(850, () => { if (qid === myQ) next(); });
+            bars({ keepMonster: true });
+            return;
+          }
           const praise = praiseFor(res);
           const ttsAfter = ex.ttsAfter || (ex.type === 'pic4' && ex.prompt.text) || (ex.type === 'spell' && ex.target) || (ex.type === 'build' && ex.display) || null;
           const readBack = ttsAfter && !(ex.prompt && ex.prompt.listen) ? ttsAfter : null;
@@ -247,10 +252,33 @@
       renderers.intro = function (ex) {
         const w = Content.words[ex.word];
         const isPhrase = w.lv === 'travel';
+        const ps = Content.phonicsStage(ex.word);          // phonics: colour the pattern letters and state the rule
         const emoji = w.e ? h('div.emoji', { on: { click: () => { App.sfx('pop'); App.say(w.w); } } }, w.e) : null;
         introCard([h('span.newtag', 'NEW!'), emoji,
-          h('div.word.en', { style: isPhrase ? { fontSize: '1.9rem' } : null }, w.w), h('div.ja', w.ja),
+          ps && ps.hl ? App.hlWord('div.word.en', w.w, ps.hl) : h('div.word.en', { style: isPhrase ? { fontSize: '1.9rem' } : null }, w.w), h('div.ja', w.ja),
+          ps ? h('div.rule', '🔎 ' + ps.hint) : null,
           h('div.row.center.wrap', App.speakBtn(w.w, { xl: true }), App.slowBtn(w.w))], () => App.say(w.w));
+      };
+      // 「おぼえる」 cards: the word (pattern letters coloured for phonics), meaning, sound, rule — and ⭕ わかった！
+      function studyCard(parts, sayIt) {
+        const btn = h('button.btn.good.big', { on: { click: () => { if (locked) return; submit(true); } } }, '⭕ わかった！');
+        const card = h('div.intro-card', parts, h('div.tiny.muted.say-hint.go', '🔊 きいて、まねして いってから ⭕'), btn);
+        qarea.appendChild(card);
+        setTimeout(sayIt, 300);
+      }
+      renderers.study = function (ex) {
+        const w = Content.words[ex.word];
+        const ps = Content.phonicsStage(ex.word);
+        const emoji = w.e ? h('div.emoji', { on: { click: () => { App.sfx('pop'); App.say(w.w); } } }, w.e) : null;
+        studyCard([h('span.newtag', 'おぼえよう'), emoji,
+          ps && ps.hl ? App.hlWord('div.word.en', w.w, ps.hl) : h('div.word.en', { style: w.lv === 'travel' ? { fontSize: '1.9rem' } : null }, w.w), h('div.ja', w.ja),
+          ps ? h('div.rule', '🔎 ' + ps.hint) : null,
+          h('div.row.center.wrap', App.speakBtn(w.w, { xl: true }), App.slowBtn(w.w))], () => App.say(w.w));
+      };
+      renderers.abcStudy = function (ex) {
+        const e = ex.entry, L = ex.letter;
+        studyCard([h('span.newtag', 'おぼえよう'), h('div.letter-pair', L, h('small', L.toLowerCase())), h('div.emoji', { on: { click: () => { App.sfx('pop'); App.say(e[2]); } } }, e[3]), h('div.word.en', e[2]), h('div.ja', e[4]),
+          h('div.row.center.wrap', App.speakBtn(L + '.', { xl: true, label: ' ' + L }), App.speakBtn(e[2], { label: ' ' + e[2] }))], () => App.say(L + '. ' + L.toLowerCase() + '. ' + e[2] + '.', { rate: 0.8 }));
       };
       renderers.abcIntro = function (ex) {
         const e = ex.entry, L = ex.letter;
@@ -408,7 +436,7 @@
       const big = s.kind === 'test' || s.kind === 'boss';
       const partial = s.kind === 'lesson' && r.cleared === false;          // monster beaten, but under ★★: the lesson replays
       const bossLocked = s.kind === 'boss' && !win && Engine.bossLocked(p, Content.stage(s.stageId));
-      const kindLabel = { lesson: partial ? 'あと すこし！' : 'レッスン クリア！', boss: win ? 'ボス げきは！' : 'ボスは つよかった…', test: win ? 'ごうかく！' : 'あと すこし！', review: 'ゾンビ たいじ かんりょう！', travel: 'たびの れんしゅう クリア！', practice: 'れんしゅう クリア！' }[s.kind];
+      const kindLabel = { lesson: s.study ? 'ぜんぶ おぼえた！' : partial ? 'あと すこし！' : 'レッスン クリア！', boss: win ? 'ボス げきは！' : 'ボスは つよかった…', test: win ? 'ごうかく！' : 'あと すこし！', review: 'ゾンビ たいじ かんりょう！', travel: 'たびの れんしゅう クリア！', practice: 'れんしゅう クリア！' }[s.kind];
 
       // --- a timeline of reveals; a tap anywhere (not on a button) jumps to the end ---
       const steps = [], timers = []; let skipped = false, tEnd = 0;

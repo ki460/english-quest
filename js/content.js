@@ -19,9 +19,19 @@
     }, extra || {});
     st.monster = world.monsters[idx % world.monsters.length];
     st.boss = idx === -1 ? world.boss : [st.monster[0] + 'のボス', st.monster[1]];
+    // Teach before testing: a stage opens with 「おぼえる」 lessons — the words as cards, ⭕ to go on, nothing to get
+    // wrong (at most 12 cards each). Their ids ('-S1') are separate from the quiz lessons' ('-L1'), so saved progress keeps.
+    const studyChunks = kind === 'abc' ? [wordKeys] : U.chunkEven(wordKeys, 12);
+    studyChunks.forEach((ws, i) => {
+      const label = 'おぼえる' + (studyChunks.length > 1 ? ' ' + (i + 1) : '');
+      const lesson = { id: st.id + '-S' + (i + 1), stage: st.id, idx: st.lessons.length, words: ws, kind: st.kind, focus: 'study', label, name: '📖 ' + label, short: '📖' };
+      st.lessons.push(lesson);
+      C.lessons[lesson.id] = lesson;
+    });
     const chunks = kind === 'abc' ? [wordKeys, wordKeys, wordKeys, wordKeys] : U.chunkEven(wordKeys, WORDS_PER_LESSON);
     chunks.forEach((ws, i) => {
-      const lesson = { id: st.id + '-L' + (i + 1), stage: st.id, idx: i, words: ws, kind: st.kind };
+      const label = 'レッスン ' + (i + 1);
+      const lesson = { id: st.id + '-L' + (i + 1), stage: st.id, idx: st.lessons.length, words: ws, kind: st.kind, label, name: '⚔️ ' + label, short: String(i + 1) };
       if (kind === 'abc') lesson.focus = ['hear', 'case', 'trace', 'first'][i];
       st.lessons.push(lesson);
       C.lessons[lesson.id] = lesson;
@@ -45,7 +55,7 @@
     const phWorld = C.worldByKey.ph;
     D.phonics.forEach((grp, i) => {
       const keys = grp.words.map(w => addWord('ph:' + w[0], w[0], w[1], w[2], 'n', 'ph', grp.key));
-      makeStage(phWorld, i, grp.name, grp.emoji, keys, 'phonics', { hint: grp.hint, pattern: grp.key });
+      makeStage(phWorld, i, grp.name, grp.emoji, keys, 'phonics', { hint: grp.hint, pattern: grp.key, hl: grp.hl || '' });
     });
 
     // --- Vocabulary worlds (Eiken levels); duplicates across levels keep the earliest level only
@@ -112,6 +122,8 @@
     return pool;
   };
   C.levelName = (key) => { const w = C.worldByKey[key]; return w ? w.sub : key; };
+  // the phonics stage (sound pattern) a phonics word belongs to
+  C.phonicsStage = (key) => { const w = C.words[key]; return w && w.lv === 'ph' ? (C.worldByKey.ph.stages.find(s => s.pattern === w.theme) || null) : null; };
   C.countWords = (lv) => (C.levelWords[lv] || []).length;
 
   window.Content = C;

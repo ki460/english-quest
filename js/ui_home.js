@@ -86,10 +86,11 @@
         sc.appendChild(h('div.card', { style: { borderColor: 'var(--bad)', background: 'var(--bad-soft)' } }, h('div.bold', '⚠️ この たんまつには えいごの こえが ありません'), h('div.small', 'えいごを まちがった おとで よまないように、よみあげは おやすみしています。おうちのひとメニュー（⚙️）→ 設定 に なおしかたが あります')));
       }
       // continue button. A lesson that did not reach ★★ is replayed; when zombies pile up before new words, review first.
-      const retryLesson = na.kind === 'lesson' && !!(p.lessons[na.stage.lessons[na.lesson].id] && p.lessons[na.stage.lessons[na.lesson].id].n > 0);
-      const nudge = na.kind === 'lesson' && !retryLesson ? Engine.suggestReview(p) : 0;
+      const nextL = na.kind === 'lesson' ? na.stage.lessons[na.lesson] : null;
+      const retryLesson = !!(nextL && p.lessons[nextL.id] && p.lessons[nextL.id].n > 0);
+      const nudge = nextL && !retryLesson && nextL.focus !== 'study' ? Engine.suggestReview(p) : 0;
       const label = nudge ? '🧟 ゾンビを たおしてから すすもう！（' + nudge + 'たい）'
-        : na.kind === 'lesson' ? (retryLesson ? '🔁 ' + na.stage.name + ' ' + (na.lesson + 1) + ' を もういちど' : '⚔️ ' + na.stage.name + ' ' + (na.lesson + 1) + ' へ すすむ')
+        : nextL ? (nextL.focus === 'study' ? '📖 ' + na.stage.name + ' の ' + (na.stage.kind === 'abc' ? 'もじ' : 'たんご') + 'を おぼえる' : retryLesson ? '🔁 ' + na.stage.name + ' ' + nextL.label + ' を もういちど' : '⚔️ ' + na.stage.name + ' ' + nextL.label + ' へ すすむ')
         : na.kind === 'boss' ? '👑 ボス「' + na.stage.boss[0] + '」に ちょうせん'
         : na.kind === 'practice' ? '💪 ' + na.stage.name + ' を れんしゅうして ボスに そなえる'
         : na.kind === 'test' ? '🧙 ' + na.world.test + ' に ちょうせん' : '🏆 ぜんぶ クリア！ れんしゅうしよう';

@@ -208,6 +208,22 @@
     return b;
   };
   App.slowBtn = (text) => App.speakBtn(text, { icon: '🐢', label: ' ゆっくり', rate: 0.6 });
+  // a word with the letters of a sound pattern coloured: c[a]t, [sh]op, c[a]k[e] (hl is a regex source from phonics.js)
+  App.hlWord = function (cls, text, hl) {
+    const el = h(cls);
+    let re = null;
+    try { re = hl ? new RegExp(hl, 'g') : null; } catch (e) { re = null; }
+    if (!re) { el.textContent = text; return el; }
+    let last = 0, m;
+    while ((m = re.exec(text))) {
+      if (!m[0].length) { re.lastIndex++; continue; }
+      if (m.index > last) el.appendChild(document.createTextNode(text.slice(last, m.index)));
+      el.appendChild(h('span.hl', m[0]));
+      last = m.index + m[0].length;
+    }
+    if (last < text.length) el.appendChild(document.createTextNode(text.slice(last)));
+    return el;
+  };
 
   // level-up / badge / hatch popups used by several screens
   App.showLevelUp = function (lu, then) {
