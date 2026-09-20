@@ -256,7 +256,7 @@
         const e = ex.entry, L = ex.letter;
         const say = () => App.say(L + '. ' + L.toLowerCase() + '. ' + e[2] + '.', { rate: 0.8 });
         introCard([h('span.newtag', 'NEW!'), h('div.letter-pair', L, h('small', L.toLowerCase())), h('div.emoji', { on: { click: () => { App.sfx('pop'); App.say(e[2]); } } }, e[3]), h('div.word.en', e[2]), h('div.ja', e[4]),
-          h('div.row.center.wrap', App.speakBtn('The letter ' + L + '.', { xl: true, label: ' ' + L }), App.speakBtn(e[2], { label: ' ' + e[2] }))], say);
+          h('div.row.center.wrap', App.speakBtn(L + '.', { xl: true, label: ' ' + L }), App.speakBtn(e[2], { label: ' ' + e[2] }))], say);
       };
       renderers.choice = function (ex) {
         qarea.appendChild(promptCard(ex));

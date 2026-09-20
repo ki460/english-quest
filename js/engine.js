@@ -282,7 +282,7 @@
   // alphabet
   const LETTERS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
   const abcEntry = (L) => D().abc.find(x => x[0] === L);
-  const letterTts = (L) => 'The letter ' + L + '.';
+  const letterTts = (L) => L + '.';   // the bare letter name (a capital with a period is read as the name, not as the article)
   function letterChoices(L, lower, poolLetters) {
     const pool = U.shuffle((poolLetters || LETTERS).filter(x => x !== L));
     const ds = pool.slice(0, 3);
