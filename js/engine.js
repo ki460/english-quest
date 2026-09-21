@@ -198,7 +198,7 @@
     const w = W(key);
     const ds = distinctBy(themedPool(key, { pos: true }), k => W(k).ja, 3, [w.ja]);
     const r = shuffledChoices(key, ds, k => ({ key: k, label: W(k).ja }));
-    return { type: 'choice', word: key, gen: ['ja4', key], prompt: { text: w.w, tts: w.w, label: 'いみは どれ？' }, choices: r.choices, answer: r.answer, ja: w.ja, after: (w.e ? w.e + ' ' : '') + w.w + ' ＝ ' + w.ja };
+    return { type: 'choice', word: key, gen: ['ja4', key], prompt: { text: w.w, tts: w.w, label: 'いみは どれ？' }, choices: r.choices, answer: r.answer, ja: w.ja, ttsAfter: w.w, after: (w.e ? w.e + ' ' : '') + w.w + ' ＝ ' + w.ja };
   };
   G.en4 = function (p, key) {
     const w = W(key);
@@ -215,15 +215,18 @@
     return { type: 'choice', word: key, gen: ['listen4', key], prompt: { tts: w.w, listen: true, label: 'きこえた たんごは？' }, choices: r.choices, answer: r.answer, ja: w.ja, reveal: w.w };
   };
   G.spellable = (key) => { const w = W(key); return /^[a-z]{2,9}$/.test(w.w); };
+  // a long word opens with its first letter already in place — the child fills the rest
+  const SPELL_GIVEN_FROM = 7;
   G.spell = function (p, key) {
     const w = W(key);
     if (!G.spellable(key)) return G.en4(p, key);
     const letters = w.w.split('');
+    const given = letters.length >= SPELL_GIVEN_FROM ? 1 : 0;
     const extra = (w.lv === 'g5' || w.lv === 'ph') ? 1 : 2;
     const alphabet = 'abcdefghijklmnopqrstuvwxyz';
     const distract = [];
     while (distract.length < extra) { const ch = alphabet[U.rand(26)]; if (letters.indexOf(ch) < 0 && distract.indexOf(ch) < 0) distract.push(ch); }
-    return { type: 'spell', word: key, gen: ['spell', key], target: w.w, tiles: U.shuffle(letters.concat(distract)), prompt: { emoji: w.e, text: w.ja, tts: w.w, label: 'つづりを つくろう' }, ja: w.ja };
+    return { type: 'spell', word: key, gen: ['spell', key], target: w.w, given, tiles: U.shuffle(letters.slice(given).concat(distract)), prompt: { emoji: w.e, text: w.ja, tts: w.w, label: 'つづりを つくろう' }, ja: w.ja };
   };
   G.speak = function (p, key) {
     const w = W(key);
@@ -364,6 +367,11 @@
   const jaMode = (p) => p.settings.answerMode !== 'pic';
   const box = (p, key) => (p.words[key] ? p.words[key].b : 0);
   const wrongness = (p, key) => (p.words[key] ? p.words[key].w - p.words[key].c : 0);
+  // spelling is production, not recognition: never ask for it until the word is already known.
+  // The review ladder below gates it at box 4; lessons and bosses use this gentler bar so that a
+  // word met minutes ago is recognised first and only spelled once it has been answered right.
+  const SPELL_BOX = 2;
+  const spellReady = (p, key) => G.spellable(key) && box(p, key) >= SPELL_BOX;
   // the first question after meeting a word: the gentlest recognition available
   const recog = (p, key) => { const w = W(key); return (w.lv !== 'ph' && jaMode(p)) || !w.e ? G.ja4(p, key) : G.pic4(p, key); };
   // met before but still shaky (never right, or knocked back to box 0): show the word card again
@@ -373,7 +381,7 @@
   const gentlePractice = (p, key) => (jaMode(p) ? G.en4 : (W(key).e ? G.pic4 : G.ja4))(p, key);
   function vocabPractice(p, key) {
     const opts = jaMode(p) ? ['en4', 'en4', 'listen4'] : ['listen4', 'en4'];
-    if (G.spellable(key)) opts.push('spell');
+    if (spellReady(p, key)) opts.push('spell');
     if (p.settings.speech) opts.push('speak');
     return G[U.pick(opts)](p, key);
   }
@@ -386,7 +394,11 @@
     if (b <= 3) return U.pick([G.en4, G.listen4])(p, key);
     return U.pick(G.spellable(key) ? [G.en4, G.spell, G.listen4] : [G.en4, G.listen4])(p, key);
   }
-  const bossVocab = (p, key) => U.pick(jaMode(p) ? [G.ja4, G.en4, G.en4, G.listen4, G.spell] : [G.pic4, G.ja4, G.en4, G.listen4, G.spell])(p, key);
+  function bossVocab(p, key) {
+    const opts = jaMode(p) ? [G.ja4, G.en4, G.en4, G.listen4] : [G.pic4, G.ja4, G.en4, G.listen4];
+    if (spellReady(p, key)) opts.push(G.spell);
+    return U.pick(opts)(p, key);
+  }
   function grammarSteps(p, lv, n, forTest) {
     const out = [];
     if (!C().isVocabLevel(lv)) return out;

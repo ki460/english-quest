@@ -231,7 +231,7 @@
           if (prevCombo >= 2) { breaking = true; anim(comboPill, 'break', 600); later(600, () => { breaking = false; bars({ keepMonster: true }); }); }
           feedback(false, ex, res.fixQueued ? '👀 つぎの カードで たしかめよう' + (res.retryQueued ? '。あとで もういちど チャンス！' : '') : res.retryQueued ? '🔁 あとで もういちど チャンス！' : details, res.retryQueued ? 'もういちど チャンス！' : U.pick(['だいじょうぶ！', 'つぎは できる！', 'おしい！']));
           if (res.slowed) later(900, () => App.toast('🐢 ゆっくり いこう。ここからは カードを みてから こたえるよ'));
-          const ct = ex.choices ? (ex.choices[ex.answer].tts || (ex.choices[ex.answer].label && /[a-zA-Z]/.test(ex.choices[ex.answer].label) ? ex.choices[ex.answer].label : null)) : (ex.display || ex.target || null);
+          const ct = ex.choices ? (ex.choices[ex.answer].tts || (ex.choices[ex.answer].label && /[a-zA-Z]/.test(ex.choices[ex.answer].label) ? ex.choices[ex.answer].label : null) || ex.ttsAfter || null) : (ex.display || ex.target || null);
           if (ct) later(550, () => { if (qid === myQ) App.say(ct); });
         }
         bars({ keepMonster: correct && !isTest });
@@ -302,25 +302,40 @@
         }
       };
       renderers.pic4 = renderers.choice;
+      // one slot per letter: the word's length is visible from the start, a tapped slot gives its letter
+      // back, and nothing is judged until こたえる — so a child can look at the answer before it counts.
       renderers.spell = function (ex) {
         qarea.appendChild(promptCard(ex));
-        const box = h('div.answerbox'); const tiles = h('div.tiles');
+        const given = ex.given || 0, free = ex.target.length - given;
+        const box = h('div.answerbox.slots'); const tiles = h('div.tiles');
         let picked = [];
-        const tileEls = ex.tiles.map((ch, i) => h('button.tile', { on: { click: () => { if (locked || picked.some(x => x.i === i)) return; App.sfx('tilePick', picked.length); picked.push({ ch, i }); draw(); if (picked.length === ex.target.length) check(); } } }, ch));
+        const checkBtn = h('button.btn.primary.block', { on: { click: check } }, 'こたえる');
+        const tileEls = ex.tiles.map((ch, i) => h('button.tile', { on: { click: () => {
+          if (locked || picked.length >= free || picked.some(x => x.i === i)) return;
+          App.sfx('tilePick', given + picked.length); picked.push({ ch, i }); draw();
+        } } }, ch));
         tileEls.forEach(t => tiles.appendChild(t));
+        function pull(n) { if (locked || !picked[n]) return; picked.splice(n, 1); App.sfx('tileUnpick'); draw(); }
         function draw() {
           U.clear(box);
-          picked.forEach((pk, k) => box.appendChild(h('button.tile', { on: { click: () => { if (locked) return; picked.splice(k, 1); App.sfx('tileUnpick'); draw(); } } }, pk.ch)));
+          for (let n = 0; n < given; n++) box.appendChild(h('span.slot.given', ex.target[n]));
+          for (let n = 0; n < free; n++) box.appendChild(picked[n]
+            ? h('button.slot.filled', { on: { click: () => pull(n) } }, picked[n].ch)
+            : h('span.slot'));
           tileEls.forEach((t, i) => t.classList.toggle('used', picked.some(x => x.i === i)));
+          checkBtn.disabled = picked.length < free;
         }
         function check() {
-          const ans = picked.map(x => x.ch).join('');
+          if (locked || picked.length < free) return;
+          App.sfx('tap');
+          const ans = ex.target.slice(0, given) + picked.map(x => x.ch).join('');
           const ok = ans === ex.target;
           box.classList.add(ok ? 'ok' : 'ng');
           submit(ok);
         }
         qarea.appendChild(box); qarea.appendChild(tiles);
-        qarea.appendChild(h('div.row.center', h('button.btn.sm.ghost', { on: { click: () => { if (locked || !picked.length) return; picked.pop(); App.sfx('tileUnpick'); draw(); } } }, '⌫ ひとつ けす'), h('button.btn.sm.ghost', { on: { click: () => { if (locked || !picked.length) return; picked = []; App.sfx('tileUnpick'); draw(); } } }, 'ぜんぶ けす')));
+        qarea.appendChild(h('div.row.center', h('button.btn.sm.ghost', { on: { click: () => pull(picked.length - 1) } }, '⌫ ひとつ けす'), h('button.btn.sm.ghost', { on: { click: () => { if (locked || !picked.length) return; picked = []; App.sfx('tileUnpick'); draw(); } } }, 'ぜんぶ けす')));
+        qarea.appendChild(checkBtn);
         draw();
       };
       renderers.build = function (ex) {

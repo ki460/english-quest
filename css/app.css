@@ -239,6 +239,14 @@ p { margin: 0; }
 .tile.sentence { font-size: 1.2rem; text-transform: none; }
 .answerbox { min-height: 66px; border-radius: var(--r-s); background: var(--surface-2); border: 2px dashed var(--line); display: flex; flex-wrap: wrap; gap: 6px; align-items: center; justify-content: center; padding: 8px; }
 .answerbox .tile { background: var(--gold-soft); }
+/* spelling slots: one per letter, so the word's length shows before the first tap; a filled slot gives its letter back */
+.answerbox.slots { border-color: transparent; background: none; gap: 6px; padding: 8px 4px; }
+.slot { min-width: 42px; height: 52px; border-radius: var(--r-xs); border: 2px dashed var(--ink-3); background: none; display: inline-flex; align-items: center; justify-content: center; font-family: var(--font-en); font-weight: 600; font-size: 1.5rem; color: var(--ink); padding: 0 6px; }
+button.slot { border: 0; cursor: pointer; transition: transform var(--dur) var(--ease); }
+button.slot:active { transform: translateY(3px); box-shadow: 0 1px 0 var(--line); }
+.slot.filled { background: var(--gold-soft); box-shadow: 0 4px 0 var(--line); }
+.slot.given { background: var(--surface-3); border-color: transparent; color: var(--ink-2); }
+@media (max-width: 420px) { .slot { min-width: 32px; height: 46px; font-size: 1.25rem; padding: 0 3px; } }
 .answerbox.ok { border-color: var(--good); background: var(--good-soft); animation: okPop .35s var(--bounce); } .answerbox.ng { border-color: var(--bad); background: var(--bad-soft); animation: shake .4s; }
 .feedback { border-radius: var(--r); padding: 14px 16px; display: flex; align-items: center; gap: 12px; animation: slideUp .3s var(--ease); }
 .feedback.ok { background: var(--good-soft); color: var(--good); } .feedback.ng { background: var(--bad-soft); color: var(--bad); }
